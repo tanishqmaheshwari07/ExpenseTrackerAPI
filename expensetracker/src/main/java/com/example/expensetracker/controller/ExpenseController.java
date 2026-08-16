@@ -1,13 +1,13 @@
 package com.example.expensetracker.controller;
 
+import com.example.expensetracker.dto.ExpenseRequest;
+import com.example.expensetracker.dto.ExpenseResponse;
 import com.example.expensetracker.entity.Expense;
 import com.example.expensetracker.service.ExpenseService;
 import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
 import org.springframework.web.bind.annotation.*;
-
 import java.util.List;
-import java.util.Optional;
 
 @RestController
 @AllArgsConstructor
@@ -17,17 +17,16 @@ public class ExpenseController {
     private final ExpenseService expenseService;
 
     @PostMapping
-
-    public Expense createExpense(@Valid @RequestBody Expense expense){
-        return expenseService.createExpense(expense);
+    public ExpenseResponse createExpense(@Valid @RequestBody ExpenseRequest expenseRequest){
+        return expenseService.createExpense(expenseRequest);
     }
 
     @GetMapping
-    public List<Expense> getExpenses(){
+    public List<ExpenseResponse> getExpenses(){
         return expenseService.findAll();
     }
     @GetMapping("/{id}")
-    public Expense getExpenseById(@PathVariable Long id){
+    public ExpenseResponse getExpenseById(@PathVariable Long id){
         return expenseService.findById(id);
     }
 
@@ -37,11 +36,10 @@ public class ExpenseController {
     }
 
     @PutMapping("/{id}")
-    public Expense updateExpense(
+    public ExpenseResponse updateExpense(
             @PathVariable Long id,
-            @Valid @RequestBody Expense expense){
-        return expenseService.updateExpense(id, expense);
+            @Valid @RequestBody ExpenseRequest expenseRequest) {
+
+        return expenseService.updateExpense(id, expenseRequest);
     }
-
-
 }
