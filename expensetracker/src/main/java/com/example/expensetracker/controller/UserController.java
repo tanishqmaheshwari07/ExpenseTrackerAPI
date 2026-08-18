@@ -4,11 +4,9 @@ import com.example.expensetracker.dto.UserRequest;
 import com.example.expensetracker.dto.UserResponse;
 import com.example.expensetracker.entity.User;
 import com.example.expensetracker.service.UserService;
+import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @AllArgsConstructor
@@ -20,6 +18,23 @@ public class UserController {
     @PostMapping
     public UserResponse createUser(@RequestBody UserRequest userRequest){
         return userService.createUser(userRequest);
+    }
+
+    @GetMapping("/{id}")
+    public UserResponse getUserById(@PathVariable Long id){
+        return userService.getUserById(id);
+    }
+
+    @DeleteMapping("/{id}")
+    public void deleteUser(@PathVariable Long id) {
+        userService.deleteUser(id);
+    }
+
+    @PutMapping("/{id}")
+    public UserResponse updateUser(
+            @PathVariable Long id,
+            @Valid @RequestBody UserRequest userRequest){
+        return userService.updateUser(id, userRequest);
     }
 
 }

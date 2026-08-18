@@ -16,9 +16,12 @@ public class ExpenseController {
 
     private final ExpenseService expenseService;
 
-    @PostMapping
-    public ExpenseResponse createExpense(@Valid @RequestBody ExpenseRequest expenseRequest){
-        return expenseService.createExpense(expenseRequest);
+    @PostMapping("/user/{userId}")
+    public ExpenseResponse createExpense(
+            @PathVariable Long userId,
+            @Valid @RequestBody ExpenseRequest expenseRequest) {
+
+        return expenseService.createExpense(userId, expenseRequest);
     }
 
     @GetMapping

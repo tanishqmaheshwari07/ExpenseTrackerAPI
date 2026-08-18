@@ -3,8 +3,11 @@ package com.example.expensetracker.service;
 import com.example.expensetracker.dto.ExpenseRequest;
 import com.example.expensetracker.dto.ExpenseResponse;
 import com.example.expensetracker.entity.Expense;
+import com.example.expensetracker.entity.User;
 import com.example.expensetracker.exception.ExpenseNotFoundException;
+import com.example.expensetracker.exception.UserNotFoundException;
 import com.example.expensetracker.repository.ExpenseRepository;
+import com.example.expensetracker.repository.UserRepository;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 import java.util.List;
@@ -14,16 +17,25 @@ import java.util.List;
 public class ExpenseService {
 
     private final ExpenseRepository expenseRepository;
+    private final UserRepository userRepository;
 
 
-    public ExpenseResponse createExpense(ExpenseRequest expenseRequest){
+    public ExpenseResponse createExpense(Long userId, ExpenseRequest request) {
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() ->
+                        new UserNotFoundException(
+                                "User with id " + userId + " not found"
+                        ));
 
         Expense expense = new Expense();
 
-        expense.setAmount(expenseRequest.getAmount());
-        expense.setDescription(expenseRequest.getDescription());
-        expense.setCategory(expenseRequest.getCategory());
-        expense.setDate(expenseRequest.getDate());
+        expense.setAmount(request.getAmount());
+        expense.setDescription(request.getDescription());
+        expense.setCategory(request.getCategory());
+        expense.setDate(request.getDate());
+
+        expense.setUser(user);
 
         Expense savedExpense = expenseRepository.save(expense);
 
@@ -37,7 +49,6 @@ public class ExpenseService {
 
         return response;
     }
-
 
 
     public List<ExpenseResponse> findAll() {
@@ -110,5 +121,7 @@ public class ExpenseService {
 
         return response;
     }
+
+
 
 }
