@@ -14,7 +14,7 @@ public class UserService {
 
     private final UserRepository userRepository;
 
-    public UserResponse createUser(UserRequest userRequest){
+    public UserResponse createUser(UserRequest userRequest) {
 
         User user = new User();
 
@@ -33,12 +33,16 @@ public class UserService {
         return response;
     }
 
-    public UserResponse getUserById(Long id){
+    public UserResponse getUserById(Long id) {
+
         User user = userRepository.findById(id)
                 .orElseThrow(() ->
-                        new RuntimeException("User with id " + id + " not found"));
+                        new UserNotFoundException(
+                                "User with id " + id + " not found"
+                        ));
 
         UserResponse response = new UserResponse();
+
         response.setId(user.getId());
         response.setName(user.getName());
         response.setEmail(user.getEmail());
@@ -46,7 +50,8 @@ public class UserService {
         return response;
     }
 
-    public void deleteUser(Long id){
+    public void deleteUser(Long id) {
+
         User user = userRepository.findById(id)
                 .orElseThrow(() ->
                         new UserNotFoundException(
@@ -56,7 +61,9 @@ public class UserService {
         userRepository.delete(user);
     }
 
-    public UserResponse updateUser(Long id, UserRequest userRequest) {
+    public UserResponse updateUser(
+            Long id,
+            UserRequest userRequest) {
 
         User existingUser = userRepository.findById(id)
                 .orElseThrow(() ->
@@ -68,7 +75,8 @@ public class UserService {
         existingUser.setEmail(userRequest.getEmail());
         existingUser.setPassword(userRequest.getPassword());
 
-        User updatedUser = userRepository.save(existingUser);
+        User updatedUser =
+                userRepository.save(existingUser);
 
         UserResponse response = new UserResponse();
 
@@ -78,5 +86,4 @@ public class UserService {
 
         return response;
     }
-
 }

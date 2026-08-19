@@ -13,6 +13,7 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    // Expense not found → 404
     @ExceptionHandler(ExpenseNotFoundException.class)
     public ResponseEntity<String> handleExpenseNotFound(
             ExpenseNotFoundException ex) {
@@ -22,6 +23,27 @@ public class GlobalExceptionHandler {
                 .body(ex.getMessage());
     }
 
+    // User not found → 404
+    @ExceptionHandler(UserNotFoundException.class)
+    public ResponseEntity<String> handleUserNotFound(
+            UserNotFoundException ex) {
+
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(ex.getMessage());
+    }
+
+    // Expense does not belong to user → 403
+    @ExceptionHandler(ExpenseNotOwnedException.class)
+    public ResponseEntity<String> handleExpenseNotOwnedException(
+            ExpenseNotOwnedException ex) {
+
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .body(ex.getMessage());
+    }
+
+    // Validation errors → 400
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, String>> handleValidationException(
             MethodArgumentNotValidException ex) {
@@ -29,6 +51,7 @@ public class GlobalExceptionHandler {
         Map<String, String> errors = new HashMap<>();
 
         for (FieldError error : ex.getBindingResult().getFieldErrors()) {
+
             errors.put(
                     error.getField(),
                     error.getDefaultMessage()
@@ -39,4 +62,5 @@ public class GlobalExceptionHandler {
                 .status(HttpStatus.BAD_REQUEST)
                 .body(errors);
     }
+
 }

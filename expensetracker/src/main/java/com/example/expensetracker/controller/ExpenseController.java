@@ -2,12 +2,15 @@ package com.example.expensetracker.controller;
 
 import com.example.expensetracker.dto.ExpenseRequest;
 import com.example.expensetracker.dto.ExpenseResponse;
-import com.example.expensetracker.entity.Expense;
+import com.example.expensetracker.entity.Category;
 import com.example.expensetracker.service.ExpenseService;
 import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import java.util.List;
 
 @RestController
 @AllArgsConstructor
@@ -16,33 +19,91 @@ public class ExpenseController {
 
     private final ExpenseService expenseService;
 
+
+    // CREATE EXPENSE
     @PostMapping("/user/{userId}")
-    public ExpenseResponse createExpense(
+    public ResponseEntity<ExpenseResponse> createExpense(
             @PathVariable Long userId,
             @Valid @RequestBody ExpenseRequest expenseRequest) {
 
-        return expenseService.createExpense(userId, expenseRequest);
+        ExpenseResponse response =
+                expenseService.createExpense(userId, expenseRequest);
+
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(response);
     }
 
+
+    // GET ALL EXPENSES + PAGINATION + CATEGORY FILTER
     @GetMapping
-    public List<ExpenseResponse> getExpenses(){
-        return expenseService.findAll();
+    public ResponseEntity<Page<ExpenseResponse>> getExpenses(
+            @RequestParam(required = false) Category category,
+            Pageable pageable) {
+
+        Page<ExpenseResponse> response;
+
+        if (category != null) {
+            response = expenseService.findByCategory(category, pageable);
+        } else {
+            response = expenseService.findAll(pageable);
+        }
+
+        return ResponseEntity.ok(response);
     }
+
+
+    // GET EXPENSE BY ID
     @GetMapping("/{id}")
-    public ExpenseResponse getExpenseById(@PathVariable Long id){
-        return expenseService.findById(id);
+    public ResponseEntity<ExpenseResponse> getExpenseById(
+            @PathVariable Long id) {
+
+        ExpenseResponse response =
+                expenseService.findById(id);
+
+        return ResponseEntity.ok(response);
     }
 
-    @DeleteMapping("/{id}")
-    public void deleteExpense(@PathVariable Long id){
-        expenseService.deleteExpense(id);
+
+    // UPDATE EXPENSE
+    @PutMapping("/{expenseId}/user/{userId}")
+    public ResponseEntity<ExpenseResponse> updateExpense(
+            @PathVariable Long expenseId,
+            @PathVariable Long userId,
+            @Valid @RequestBody ExpenseRequest request) {
+
+        ExpenseResponse response =
+                expenseService.updateExpense(
+                        expenseId,
+                        userId,
+                        request
+                );
+
+        return ResponseEntity.ok(response);
     }
 
-    @PutMapping("/{id}")
-    public ExpenseResponse updateExpense(
-            @PathVariable Long id,
-            @Valid @RequestBody ExpenseRequest expenseRequest) {
 
-        return expenseService.updateExpense(id, expenseRequest);
+    // DELETE EXPENSE
+    @DeleteMapping("/{expenseId}/user/{userId}")
+    public ResponseEntity<Void> deleteExpense(
+            @PathVariable Long expenseId,
+            @PathVariable Long userId) {
+
+        expenseService.deleteExpense(expenseId, userId);
+
+        return ResponseEntity.noContent().build();
+    }
+
+
+    // GET EXPENSES OF A SPECIFIC USER
+    @GetMapping("/user/{userId}")
+    public ResponseEntity<Page<ExpenseResponse>> getExpensesByUser(
+            @PathVariable Long userId,
+            Pageable pageable) {
+
+        Page<ExpenseResponse> response =
+                expenseService.findByUserId(userId, pageable);
+
+        return ResponseEntity.ok(response);
     }
 }
