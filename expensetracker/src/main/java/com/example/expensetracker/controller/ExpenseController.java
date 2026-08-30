@@ -12,6 +12,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @AllArgsConstructor
 @RequestMapping("/api/expenses")
@@ -19,91 +21,51 @@ public class ExpenseController {
 
     private final ExpenseService expenseService;
 
-
     // CREATE EXPENSE
-    @PostMapping("/user/{userId}")
+    @PostMapping
     public ResponseEntity<ExpenseResponse> createExpense(
-            @PathVariable Long userId,
-            @Valid @RequestBody ExpenseRequest expenseRequest) {
-
-        ExpenseResponse response =
-                expenseService.createExpense(userId, expenseRequest);
-
-        return ResponseEntity
-                .status(HttpStatus.CREATED)
-                .body(response);
+            @Valid @RequestBody ExpenseRequest request) {
+        ExpenseResponse response = expenseService.createExpense(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-
-    // GET ALL EXPENSES + PAGINATION + CATEGORY FILTER
+    // GET EXPENSES (FILTER BY OPTIONAL CATEGORY + PAGINATION) - SCOPED TO CURRENT USER
     @GetMapping
     public ResponseEntity<Page<ExpenseResponse>> getExpenses(
             @RequestParam(required = false) Category category,
             Pageable pageable) {
-
-        Page<ExpenseResponse> response;
-
-        if (category != null) {
-            response = expenseService.findByCategory(category, pageable);
-        } else {
-            response = expenseService.findAll(pageable);
-        }
-
+        Page<ExpenseResponse> response = expenseService.getExpenses(category, pageable);
         return ResponseEntity.ok(response);
     }
 
-
-    // GET EXPENSE BY ID
+    // GET EXPENSE BY ID - SCOPED TO CURRENT USER
     @GetMapping("/{id}")
     public ResponseEntity<ExpenseResponse> getExpenseById(
             @PathVariable Long id) {
-
-        ExpenseResponse response =
-                expenseService.findById(id);
-
+        ExpenseResponse response = expenseService.getExpenseById(id);
         return ResponseEntity.ok(response);
     }
 
-
-    // UPDATE EXPENSE
-    @PutMapping("/{expenseId}/user/{userId}")
+    // UPDATE EXPENSE - SCOPED TO CURRENT USER
+    @PutMapping("/{id}")
     public ResponseEntity<ExpenseResponse> updateExpense(
-            @PathVariable Long expenseId,
-            @PathVariable Long userId,
+            @PathVariable Long id,
             @Valid @RequestBody ExpenseRequest request) {
-
-        ExpenseResponse response =
-                expenseService.updateExpense(
-                        expenseId,
-                        userId,
-                        request
-                );
-
+        ExpenseResponse response = expenseService.updateExpense(id, request);
         return ResponseEntity.ok(response);
     }
 
-
-    // DELETE EXPENSE
-    @DeleteMapping("/{expenseId}/user/{userId}")
+    // DELETE EXPENSE - SCOPED TO CURRENT USER
+    @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteExpense(
-            @PathVariable Long expenseId,
-            @PathVariable Long userId) {
-
-        expenseService.deleteExpense(expenseId, userId);
-
+            @PathVariable Long id) {
+        expenseService.deleteExpense(id);
         return ResponseEntity.noContent().build();
     }
 
-
-    // GET EXPENSES OF A SPECIFIC USER
-    @GetMapping("/user/{userId}")
-    public ResponseEntity<Page<ExpenseResponse>> getExpensesByUser(
-            @PathVariable Long userId,
-            Pageable pageable) {
-
-        Page<ExpenseResponse> response =
-                expenseService.findByUserId(userId, pageable);
-
-        return ResponseEntity.ok(response);
+    // GET ALL MY EXPENSES AS LIST
+    @GetMapping("/my-expenses")
+    public ResponseEntity<List<ExpenseResponse>> getMyExpenses() {
+        return ResponseEntity.ok(expenseService.getMyExpenses());
     }
 }
