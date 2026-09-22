@@ -13,10 +13,13 @@ public class UserMapper {
         if (user == null) {
             return null;
         }
-        UserResponse response = new UserResponse();
-        response.setId(user.getId());
-        response.setName(user.getName());
-        response.setEmail(user.getEmail());
-        return response;
+        return UserResponse.builder()
+                .id(user.getId())
+                .name(user.getName())
+                .email(user.getEmail())
+                .role(user.getRole())
+                .createdAt(user.getCreatedAt())
+                .updatedAt(user.getUpdatedAt())
+                .build();
     }
 }

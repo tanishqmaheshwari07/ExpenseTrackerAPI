@@ -9,19 +9,19 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
+import java.util.Map;
 
 @Getter
 @Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ExpenseResponse {
-    private Long id;
-    private BigDecimal amount;
-    private String description;
-    private Category category;
-    private LocalDate date;
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
+public class ExpenseSummaryResponse {
+
+    private BigDecimal totalAmount;
+    private long totalCount;
+    private LocalDate startDate;
+    private LocalDate endDate;
+    private Map<Category, BigDecimal> categoryBreakdown;
+    private Map<String, BigDecimal> monthlyBreakdown;
 }

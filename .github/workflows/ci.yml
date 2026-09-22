@@ -1,0 +1,41 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Make Maven Wrapper Executable
+        run: chmod +x expensetracker/mvnw
+
+      - name: Run Tests with Maven
+        run: |
+          cd expensetracker
+          ./mvnw clean test -Dspring.profiles.active=test
+
+      - name: Package Application
+        run: |
+          cd expensetracker
+          ./mvnw clean package -DskipTests
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: expense-tracker-jar
+          path: expensetracker/target/*.jar

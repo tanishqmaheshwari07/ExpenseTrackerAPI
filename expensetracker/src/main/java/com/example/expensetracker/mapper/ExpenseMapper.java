@@ -13,12 +13,14 @@ public class ExpenseMapper {
         if (expense == null) {
             return null;
         }
-        ExpenseResponse response = new ExpenseResponse();
-        response.setId(expense.getId());
-        response.setAmount(expense.getAmount());
-        response.setDescription(expense.getDescription());
-        response.setCategory(expense.getCategory());
-        response.setDate(expense.getDate());
-        return response;
+        return ExpenseResponse.builder()
+                .id(expense.getId())
+                .amount(expense.getAmount())
+                .description(expense.getDescription())
+                .category(expense.getCategory())
+                .date(expense.getDate())
+                .createdAt(expense.getCreatedAt())
+                .updatedAt(expense.getUpdatedAt())
+                .build();
     }
 }
