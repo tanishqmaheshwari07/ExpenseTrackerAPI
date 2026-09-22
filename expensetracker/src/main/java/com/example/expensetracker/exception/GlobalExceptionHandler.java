@@ -1,106 +1,113 @@
 package com.example.expensetracker.exception;
 
+import com.example.expensetracker.dto.ApiResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
 @RestControllerAdvice
+@Slf4j
 public class GlobalExceptionHandler {
 
-    private Map<String, Object> createErrorBody(HttpStatus status, String message) {
-        Map<String, Object> error = new HashMap<>();
-        error.put("timestamp", LocalDateTime.now());
-        error.put("status", status.value());
-        error.put("error", status.getReasonPhrase());
-        error.put("message", message);
-        return error;
-    }
-
-    // 404 - Expense Not Found
     @ExceptionHandler(ExpenseNotFoundException.class)
-    public ResponseEntity<Map<String, Object>> handleExpenseNotFound(ExpenseNotFoundException ex) {
+    public ResponseEntity<ApiResponse<Void>> handleExpenseNotFound(ExpenseNotFoundException ex) {
+        log.warn("Expense not found: {}", ex.getMessage());
         return ResponseEntity
                 .status(HttpStatus.NOT_FOUND)
-                .body(createErrorBody(HttpStatus.NOT_FOUND, ex.getMessage()));
+                .body(ApiResponse.error(ex.getMessage()));
     }
 
-    // 404 - User Not Found
     @ExceptionHandler(UserNotFoundException.class)
-    public ResponseEntity<Map<String, Object>> handleUserNotFound(UserNotFoundException ex) {
+    public ResponseEntity<ApiResponse<Void>> handleUserNotFound(UserNotFoundException ex) {
+        log.warn("User not found: {}", ex.getMessage());
         return ResponseEntity
                 .status(HttpStatus.NOT_FOUND)
-                .body(createErrorBody(HttpStatus.NOT_FOUND, ex.getMessage()));
+                .body(ApiResponse.error(ex.getMessage()));
     }
 
-    // 403 - Expense Not Owned
     @ExceptionHandler(ExpenseNotOwnedException.class)
-    public ResponseEntity<Map<String, Object>> handleExpenseNotOwnedException(ExpenseNotOwnedException ex) {
+    public ResponseEntity<ApiResponse<Void>> handleExpenseNotOwnedException(ExpenseNotOwnedException ex) {
+        log.warn("Expense not owned violation: {}", ex.getMessage());
         return ResponseEntity
                 .status(HttpStatus.FORBIDDEN)
-                .body(createErrorBody(HttpStatus.FORBIDDEN, ex.getMessage()));
+                .body(ApiResponse.error(ex.getMessage()));
     }
 
-    // 401 - Unauthorized Access
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAccessDenied(AccessDeniedException ex) {
+        log.warn("Access denied: {}", ex.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .body(ApiResponse.error("Access Denied: You do not have permission to perform this action"));
+    }
+
     @ExceptionHandler(UnauthorizedAccessException.class)
-    public ResponseEntity<Map<String, Object>> handleUnauthorizedAccess(UnauthorizedAccessException ex) {
+    public ResponseEntity<ApiResponse<Void>> handleUnauthorizedAccess(UnauthorizedAccessException ex) {
+        log.warn("Unauthorized access: {}", ex.getMessage());
         return ResponseEntity
                 .status(HttpStatus.UNAUTHORIZED)
-                .body(createErrorBody(HttpStatus.UNAUTHORIZED, ex.getMessage()));
+                .body(ApiResponse.error(ex.getMessage()));
     }
 
-    // 401 - Bad Credentials
     @ExceptionHandler(BadCredentialsException.class)
-    public ResponseEntity<Map<String, Object>> handleBadCredentials(BadCredentialsException ex) {
+    public ResponseEntity<ApiResponse<Void>> handleBadCredentials(BadCredentialsException ex) {
+        log.warn("Bad credentials attempt: {}", ex.getMessage());
         return ResponseEntity
                 .status(HttpStatus.UNAUTHORIZED)
-                .body(createErrorBody(HttpStatus.UNAUTHORIZED, "Invalid email or password"));
+                .body(ApiResponse.error("Invalid email or password"));
     }
 
-    // 409 - User Already Exists
     @ExceptionHandler(UserAlreadyExistsException.class)
-    public ResponseEntity<Map<String, Object>> handleUserAlreadyExists(UserAlreadyExistsException ex) {
+    public ResponseEntity<ApiResponse<Void>> handleUserAlreadyExists(UserAlreadyExistsException ex) {
+        log.warn("User already exists conflict: {}", ex.getMessage());
         return ResponseEntity
                 .status(HttpStatus.CONFLICT)
-                .body(createErrorBody(HttpStatus.CONFLICT, ex.getMessage()));
+                .body(ApiResponse.error(ex.getMessage()));
     }
 
-    // 400 - Validation Errors
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<Map<String, Object>> handleValidationException(MethodArgumentNotValidException ex) {
+    public ResponseEntity<ApiResponse<Void>> handleValidationException(MethodArgumentNotValidException ex) {
         Map<String, String> fieldErrors = new HashMap<>();
         for (FieldError error : ex.getBindingResult().getFieldErrors()) {
             fieldErrors.put(error.getField(), error.getDefaultMessage());
         }
-
-        Map<String, Object> errorBody = createErrorBody(HttpStatus.BAD_REQUEST, "Validation failed");
-        errorBody.put("errors", fieldErrors);
-
+        log.warn("Validation failure: {}", fieldErrors);
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
-                .body(errorBody);
+                .body(ApiResponse.error("Validation failed", fieldErrors));
     }
 
-    // 400 - Bad Request for IllegalArgumentException
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleHttpMessageNotReadable(HttpMessageNotReadableException ex) {
+        log.warn("Malformed JSON payload: {}", ex.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error("Malformed request payload or invalid data type"));
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<Map<String, Object>> handleIllegalArgument(IllegalArgumentException ex) {
+    public ResponseEntity<ApiResponse<Void>> handleIllegalArgument(IllegalArgumentException ex) {
+        log.warn("Illegal argument: {}", ex.getMessage());
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
-                .body(createErrorBody(HttpStatus.BAD_REQUEST, ex.getMessage()));
+                .body(ApiResponse.error(ex.getMessage()));
     }
 
-    // 500 - General Fallback
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<Map<String, Object>> handleGeneralException(Exception ex) {
+    public ResponseEntity<ApiResponse<Void>> handleGeneralException(Exception ex) {
+        log.error("Unhandled internal server exception", ex);
         return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(createErrorBody(HttpStatus.INTERNAL_SERVER_ERROR, ex.getMessage()));
+                .body(ApiResponse.error("An unexpected error occurred. Please try again later."));
     }
 }

@@ -2,169 +2,161 @@ package com.example.expensetracker.service;
 
 import com.example.expensetracker.dto.ExpenseRequest;
 import com.example.expensetracker.dto.ExpenseResponse;
+import com.example.expensetracker.dto.ExpenseSummaryResponse;
 import com.example.expensetracker.entity.Category;
 import com.example.expensetracker.entity.Expense;
 import com.example.expensetracker.entity.User;
+import com.example.expensetracker.exception.ExpenseNotFoundException;
 import com.example.expensetracker.exception.ExpenseNotOwnedException;
 import com.example.expensetracker.mapper.ExpenseMapper;
 import com.example.expensetracker.repository.ExpenseRepository;
-import lombok.AllArgsConstructor;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 @Service
-@AllArgsConstructor
+@RequiredArgsConstructor
+@Slf4j
 @Transactional
 public class ExpenseService {
 
     private final ExpenseRepository expenseRepository;
     private final UserService userService;
 
-    // CREATE EXPENSE
-    public ExpenseResponse createExpense(
-            ExpenseRequest request) {
+    public ExpenseResponse createExpense(ExpenseRequest request) {
+        User currentUser = userService.getCurrentUser();
 
-        User currentUser =
-                userService.getCurrentUser();
+        Expense expense = Expense.builder()
+                .amount(request.getAmount())
+                .description(request.getDescription())
+                .category(request.getCategory())
+                .date(request.getDate())
+                .user(currentUser)
+                .isDeleted(false)
+                .build();
 
-        Expense expense = new Expense();
-
-        expense.setAmount(request.getAmount());
-        expense.setDescription(request.getDescription());
-        expense.setCategory(request.getCategory());
-        expense.setDate(request.getDate());
-
-        expense.setUser(currentUser);
-
-        Expense savedExpense =
-                expenseRepository.save(expense);
-
+        Expense savedExpense = expenseRepository.save(expense);
+        log.info("User '{}' created expense ID: {}", currentUser.getEmail(), savedExpense.getId());
         return ExpenseMapper.toResponse(savedExpense);
     }
 
-    // GET EXPENSE BY ID
     @Transactional(readOnly = true)
     public ExpenseResponse getExpenseById(Long id) {
+        User currentUser = userService.getCurrentUser();
 
-        User currentUser =
-                userService.getCurrentUser();
-
-        Expense expense =
-                expenseRepository
-                        .findByIdAndUserId(
-                                id,
-                                currentUser.getId()
-                        )
-                        .orElseThrow(() ->
-                                new ExpenseNotOwnedException(
-                                        "Expense not found or does not belong to you"
-                                ));
+        Expense expense = expenseRepository.findByIdAndUserId(id, currentUser.getId())
+                .orElseThrow(() -> new ExpenseNotFoundException(
+                        "Expense with id " + id + " not found or does not belong to you"
+                ));
 
         return ExpenseMapper.toResponse(expense);
     }
 
-    // UPDATE EXPENSE
-    public ExpenseResponse updateExpense(
-            Long expenseId,
-            ExpenseRequest request) {
+    public ExpenseResponse updateExpense(Long expenseId, ExpenseRequest request) {
+        User currentUser = userService.getCurrentUser();
 
-        User currentUser =
-                userService.getCurrentUser();
-
-        Expense expense =
-                expenseRepository
-                        .findByIdAndUserId(
-                                expenseId,
-                                currentUser.getId()
-                        )
-                        .orElseThrow(() ->
-                                new ExpenseNotOwnedException(
-                                        "Expense does not belong to current user"
-                                ));
+        Expense expense = expenseRepository.findByIdAndUserId(expenseId, currentUser.getId())
+                .orElseThrow(() -> new ExpenseNotOwnedException(
+                        "Expense with id " + expenseId + " does not belong to current user"
+                ));
 
         expense.setAmount(request.getAmount());
         expense.setDescription(request.getDescription());
         expense.setCategory(request.getCategory());
         expense.setDate(request.getDate());
 
-        Expense updatedExpense =
-                expenseRepository.save(expense);
-
+        Expense updatedExpense = expenseRepository.save(expense);
+        log.info("User '{}' updated expense ID: {}", currentUser.getEmail(), updatedExpense.getId());
         return ExpenseMapper.toResponse(updatedExpense);
     }
 
-    // DELETE EXPENSE
     public void deleteExpense(Long expenseId) {
+        User currentUser = userService.getCurrentUser();
 
-        User currentUser =
-                userService.getCurrentUser();
-
-        Expense expense =
-                expenseRepository
-                        .findByIdAndUserId(
-                                expenseId,
-                                currentUser.getId()
-                        )
-                        .orElseThrow(() ->
-                                new ExpenseNotOwnedException(
-                                        "Expense does not belong to current user"
-                                ));
+        Expense expense = expenseRepository.findByIdAndUserId(expenseId, currentUser.getId())
+                .orElseThrow(() -> new ExpenseNotOwnedException(
+                        "Expense with id " + expenseId + " does not belong to current user"
+                ));
 
         expenseRepository.delete(expense);
+        log.info("User '{}' soft-deleted expense ID: {}", currentUser.getEmail(), expenseId);
     }
 
-    // GET ALL EXPENSES OF CURRENT USER
     @Transactional(readOnly = true)
     public List<ExpenseResponse> getMyExpenses() {
-
-        User currentUser =
-                userService.getCurrentUser();
-
-        List<Expense> expenses =
-                expenseRepository.findByUserId(
-                        currentUser.getId()
-                );
-
+        User currentUser = userService.getCurrentUser();
+        List<Expense> expenses = expenseRepository.findByUserId(currentUser.getId());
         return expenses.stream()
                 .map(ExpenseMapper::toResponse)
                 .toList();
     }
 
-    // PAGINATED EXPENSES
     @Transactional(readOnly = true)
-    public Page<ExpenseResponse> findAll(
+    public Page<ExpenseResponse> getExpenses(
+            Category category,
+            LocalDate startDate,
+            LocalDate endDate,
             Pageable pageable) {
 
-        User currentUser =
-                userService.getCurrentUser();
+        User currentUser = userService.getCurrentUser();
+        Long userId = currentUser.getId();
 
-        return expenseRepository
-                .findByUserId(
-                        currentUser.getId(),
-                        pageable
-                )
-                .map(ExpenseMapper::toResponse);
+        Page<Expense> page;
+
+        if (category != null && startDate != null && endDate != null) {
+            page = expenseRepository.findByUserIdAndCategoryAndDateBetween(userId, category, startDate, endDate, pageable);
+        } else if (category != null) {
+            page = expenseRepository.findByUserIdAndCategory(userId, category, pageable);
+        } else if (startDate != null && endDate != null) {
+            page = expenseRepository.findByUserIdAndDateBetween(userId, startDate, endDate, pageable);
+        } else {
+            page = expenseRepository.findByUserId(userId, pageable);
+        }
+
+        return page.map(ExpenseMapper::toResponse);
     }
 
-    // CATEGORY FILTER + PAGINATION
     @Transactional(readOnly = true)
-    public Page<ExpenseResponse> findByCategory(
-            Category category,
-            Pageable pageable) {
+    public ExpenseSummaryResponse getExpenseSummary(LocalDate startDate, LocalDate endDate) {
+        User currentUser = userService.getCurrentUser();
+        Long userId = currentUser.getId();
 
-        User currentUser =
-                userService.getCurrentUser();
+        LocalDate effectiveStart = (startDate != null) ? startDate : LocalDate.now().withDayOfMonth(1);
+        LocalDate effectiveEnd = (endDate != null) ? endDate : LocalDate.now();
 
-        return expenseRepository
-                .findByUserIdAndCategory(
-                        currentUser.getId(),
-                        category,
-                        pageable
-                )
-                .map(ExpenseMapper::toResponse);
+        List<Expense> expenses = expenseRepository.findByUserIdAndDateBetween(userId, effectiveStart, effectiveEnd);
+
+        BigDecimal total = BigDecimal.ZERO;
+        Map<Category, BigDecimal> categoryMap = new EnumMap<>(Category.class);
+        Map<String, BigDecimal> monthlyMap = new TreeMap<>();
+        DateTimeFormatter monthFormatter = DateTimeFormatter.ofPattern("yyyy-MM");
+
+        for (Expense exp : expenses) {
+            total = total.add(exp.getAmount());
+            categoryMap.merge(exp.getCategory(), exp.getAmount(), BigDecimal::add);
+
+            String monthKey = exp.getDate().format(monthFormatter);
+            monthlyMap.merge(monthKey, exp.getAmount(), BigDecimal::add);
+        }
+
+        return ExpenseSummaryResponse.builder()
+                .totalAmount(total)
+                .totalCount(expenses.size())
+                .startDate(effectiveStart)
+                .endDate(effectiveEnd)
+                .categoryBreakdown(categoryMap)
+                .monthlyBreakdown(monthlyMap)
+                .build();
     }
 }

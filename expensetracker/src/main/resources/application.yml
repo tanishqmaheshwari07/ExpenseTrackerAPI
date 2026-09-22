@@ -1,0 +1,79 @@
+spring:
+  application:
+    name: expensetracker
+
+  # Database Configuration with Environment Variable Defaults
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/expense_tracker}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:shanvi007pos}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      idle-timeout: 300000
+      connection-timeout: 20000
+      max-lifetime: 1200000
+
+  # JPA & Hibernate
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: false
+        jdbc:
+          batch_size: 25
+        order_inserts: true
+        order_updates: true
+
+  # Flyway Database Migrations
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 0
+    validate-on-migrate: false
+    locations: classpath:db/migration
+
+# Security & JWT Configuration
+application:
+  security:
+    jwt:
+      secret-key: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+      access-token-expiration-ms: ${JWT_ACCESS_EXPIRATION_MS:900000} # 15 minutes
+      refresh-token-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:604800000} # 7 days
+
+# OpenAPI / Swagger UI
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method
+    tagsSorter: alpha
+    tryItOutEnabled: true
+
+# Spring Boot Actuator Observability
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when_authorized
+      probes:
+        enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+# Server Configuration
+server:
+  port: ${PORT:8080}
+  error:
+    include-message: always
+    include-binding-errors: always

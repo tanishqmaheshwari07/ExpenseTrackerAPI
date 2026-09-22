@@ -1,0 +1,26 @@
+# Build & Target Directories
+target/
+**/target/
+build/
+**/build/
+
+# IDE & Editor files
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+.project
+.classpath
+.settings/
+
+# Maven Wrapper
+.mvn/wrapper/maven-wrapper.jar
+
+# Environment & Logs
+*.log
+.env
+
+# OS Files
+.DS_Store
+Thumbs.db
