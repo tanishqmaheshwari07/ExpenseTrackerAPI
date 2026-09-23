@@ -61,6 +61,8 @@ databases:
   # ---------------------------------------------------------------------------
   - name: expensetracker-db
     databaseName: expense_tracker
-    user: postgres
     plan: free
     region: oregon
+
+
+    
