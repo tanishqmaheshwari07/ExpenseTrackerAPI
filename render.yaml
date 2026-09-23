@@ -1,0 +1,66 @@
+services:
+  # ---------------------------------------------------------------------------
+  # 1. Spring Boot Backend REST API (Docker Web Service)
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: expensetracker-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    region: oregon
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: DB_HOST
+        fromDatabase:
+          name: expensetracker-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: expensetracker-db
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: expensetracker-db
+          property: database
+      - key: DB_USERNAME
+        fromDatabase:
+          name: expensetracker-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: expensetracker-db
+          property: password
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_ACCESS_EXPIRATION_MS
+        value: "900000"
+      - key: JWT_REFRESH_EXPIRATION_MS
+        value: "604800000"
+
+  # ---------------------------------------------------------------------------
+  # 2. React + Vite Frontend (Static Site with SPA Routing)
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: expensetracker-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    plan: free
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_BASE_URL
+        value: https://expensetracker-api.onrender.com/api
+
+databases:
+  # ---------------------------------------------------------------------------
+  # 3. PostgreSQL Managed Database (Free Tier)
+  # ---------------------------------------------------------------------------
+  - name: expensetracker-db
+    databaseName: expense_tracker
+    user: postgres
+    plan: free
+    region: oregon
