@@ -4,12 +4,12 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation } from '@tanstack/react-query';
-import { AxiosError } from 'axios';
 import { Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { Card, Button, Input } from '../components/ui';
 import { authApi } from '../services/api/authApi';
 import { useToast } from '../components/ui/Toast';
-import { ApiResponse, UserRequest } from '../types';
+import { UserRequest } from '../types';
+import { parseApiError, applyServerFieldErrors } from '../utils/errorHandling';
 
 const registerSchema = z
   .object({
@@ -46,6 +46,7 @@ export const RegisterPage: React.FC = () => {
   const {
     register,
     handleSubmit,
+    setError,
     formState: { errors },
   } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
@@ -66,9 +67,10 @@ export const RegisterPage: React.FC = () => {
       showToast('success', 'Account created successfully!', 'Please sign in with your credentials.');
       navigate('/login');
     },
-    onError: (error: AxiosError<ApiResponse>) => {
-      const backendMessage = error.response?.data?.message || 'Registration failed. Please try again.';
-      setErrorMessage(backendMessage);
+    onError: (error: unknown) => {
+      const parsed = parseApiError(error, 'Registration failed. Please try again.');
+      setErrorMessage(parsed.message);
+      applyServerFieldErrors(error, setError);
     },
   });
 

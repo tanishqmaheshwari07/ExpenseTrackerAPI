@@ -1,13 +1,15 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { AlertCircle } from 'lucide-react';
 import { Modal } from './ui/Modal';
 import { Input } from './ui/Input';
 import { Select } from './ui/Select';
 import { DatePicker } from './ui/DatePicker';
 import { Button } from './ui/Button';
 import { Category, Expense, ExpenseRequest } from '../types';
+import { applyServerFieldErrors, parseApiError } from '../utils/errorHandling';
 
 const expenseSchema = z.object({
   amount: z.coerce.number().positive('Amount must be greater than ₹0.00'),
@@ -57,11 +59,13 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
   isLoading = false,
 }) => {
   const isEditing = Boolean(initialData);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const {
     register,
     handleSubmit,
     reset,
+    setError,
     formState: { errors },
   } = useForm<ExpenseFormData>({
     resolver: zodResolver(expenseSchema),
@@ -74,6 +78,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
   });
 
   useEffect(() => {
+    setFormError(null);
     if (initialData) {
       reset({
         amount: initialData.amount,
@@ -92,13 +97,21 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
   }, [initialData, isOpen, reset]);
 
   const handleFormSubmit = async (data: ExpenseFormData) => {
-    await onSubmit({
-      amount: Number(data.amount),
-      category: data.category,
-      date: data.date,
-      description: data.description || 'Expense',
-    });
-    onClose();
+    setFormError(null);
+    try {
+      await onSubmit({
+        amount: Number(data.amount),
+        category: data.category,
+        date: data.date,
+        description: data.description || 'Expense',
+      });
+    } catch (err: unknown) {
+      const parsed = parseApiError(err, 'Failed to save expense. Please check your inputs.');
+      const hasFieldErrors = applyServerFieldErrors(err, setError);
+      if (!hasFieldErrors) {
+        setFormError(parsed.message);
+      }
+    }
   };
 
   return (
@@ -113,6 +126,12 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
       }
     >
       <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4 pt-2">
+        {formError && (
+          <div className="p-3 rounded-lg bg-red-50 border border-danger/20 flex items-center gap-2.5 text-danger text-sm font-medium animate-fadeIn">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{formError}</span>
+          </div>
+        )}
         {/* Amount with ₹ Prefix Icon */}
         <Input
           label="Amount (₹)"

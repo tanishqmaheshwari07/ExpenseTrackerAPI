@@ -8,9 +8,9 @@ import {
   Trash2,
   ChevronUp,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   Receipt,
+  AlertCircle,
+  RefreshCw,
 } from 'lucide-react';
 import {
   Card,
@@ -26,9 +26,11 @@ import {
   TableHead,
   TableCell,
   Skeleton,
+  Pagination,
 } from '../components/ui';
 import { Category, Expense, ExpenseRequest } from '../types';
 import { formatCurrency, formatDate, CATEGORY_META } from '../utils/formatters';
+import { getErrorMessage } from '../utils/errorHandling';
 import { ExpenseModal } from '../components/ExpenseModal';
 import { DeleteConfirmModal } from '../components/DeleteConfirmModal';
 import { useToast } from '../components/ui/Toast';
@@ -79,7 +81,7 @@ export const ExpensesPage: React.FC = () => {
     sortDirection: sortDirection,
   }), [currentPage, pageSize, selectedCategory, startDate, endDate, sortField, sortDirection]);
 
-  const { data: pagedData, isLoading } = useExpenses(queryParams);
+  const { data: pagedData, isLoading, isError, error, refetch } = useExpenses(queryParams);
   const createMutation = useCreateExpense();
   const updateMutation = useUpdateExpense();
   const deleteMutation = useDeleteExpense();
@@ -129,20 +131,24 @@ export const ExpensesPage: React.FC = () => {
       }
       setIsModalOpen(false);
       setEditingExpense(null);
-    } catch {
-      showToast('error', 'Action failed', 'Unable to save expense. Please try again.');
+    } catch (err: unknown) {
+      const msg = getErrorMessage(err, 'Unable to save expense. Please try again.');
+      showToast('error', 'Action failed', msg);
+      throw err; // Re-throw to let ExpenseModal handle field errors
     }
   };
 
   // Delete Action
   const handleDeleteConfirm = async () => {
-    if (!deletingExpenseId) return;
+    if (!deletingExpenseId || deleteMutation.isPending) return;
+    const idToDelete = deletingExpenseId;
+    setDeletingExpenseId(null);
     try {
-      await deleteMutation.mutateAsync(deletingExpenseId);
+      await deleteMutation.mutateAsync(idToDelete);
       showToast('info', 'Expense deleted', 'The expense record was removed.');
-      setDeletingExpenseId(null);
-    } catch {
-      showToast('error', 'Delete failed', 'Could not delete the expense record.');
+    } catch (err: unknown) {
+      const msg = getErrorMessage(err, 'Could not delete the expense record.');
+      showToast('error', 'Delete failed', msg);
     }
   };
 
@@ -248,6 +254,24 @@ export const ExpensesPage: React.FC = () => {
           </div>
         </div>
       </Card>
+
+      {/* Query Error State */}
+      {isError && (
+        <Card className="p-6 border border-red-200 bg-red-50/50 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="w-6 h-6 text-danger shrink-0" />
+            <div>
+              <h4 className="text-sm font-semibold text-danger">Failed to load expenses</h4>
+              <p className="text-xs text-muted mt-0.5">
+                {getErrorMessage(error, 'Could not retrieve your expenses. Please try again.')}
+              </p>
+            </div>
+          </div>
+          <Button variant="primary" size="sm" onClick={() => refetch()} leftIcon={<RefreshCw className="w-4 h-4" />}>
+            Retry
+          </Button>
+        </Card>
+      )}
 
       {/* Main Expenses Container */}
       <Card className="p-0 overflow-hidden">
@@ -514,78 +538,19 @@ export const ExpensesPage: React.FC = () => {
         </div>
 
         {/* Pagination Controls at Bottom */}
-        <div className="px-4 sm:px-6 py-4 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-4 bg-paper">
-          {/* Left: Total Records Info & Rows per page */}
-          <div className="flex items-center justify-between sm:justify-start w-full sm:w-auto gap-4 text-xs text-muted">
-            <span>
-              Showing {expenses.length} of {totalElements}
-            </span>
-
-            <div className="flex items-center gap-2">
-              <span>Per page:</span>
-              <select
-                value={pageSize}
-                onChange={(e) => {
-                  setPageSize(Number(e.target.value));
-                  setCurrentPage(0);
-                }}
-                className="h-8 px-2 bg-paper border border-border rounded-lg text-xs font-semibold text-ink focus:outline-none focus:border-accent-end"
-              >
-                <option value={5}>5</option>
-                <option value={10}>10</option>
-                <option value={20}>20</option>
-                <option value={50}>50</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Right: Page Navigation Buttons */}
-          <div className="flex items-center justify-center gap-1.5">
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={currentPage === 0 || isLoading}
-              onClick={() => setCurrentPage((p) => Math.max(0, p - 1))}
-              className="h-8 px-2.5"
-              aria-label="Previous Page"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </Button>
-
-            <div className="flex items-center gap-1 px-1">
-              {[...Array(Math.min(5, totalPages))].map((_, i) => {
-                const pageIndex = i;
-                const isCurrent = currentPage === pageIndex;
-                return (
-                  <button
-                    key={pageIndex}
-                    onClick={() => setCurrentPage(pageIndex)}
-                    disabled={isLoading}
-                    className={`w-8 h-8 rounded-lg text-xs font-semibold transition-all ${
-                      isCurrent
-                        ? 'bg-ink text-white shadow-sm'
-                        : 'text-muted hover:text-ink hover:bg-surface'
-                    }`}
-                  >
-                    {pageIndex + 1}
-                  </button>
-                );
-              })}
-              {totalPages > 5 && <span className="text-xs text-muted px-1">...</span>}
-            </div>
-
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={currentPage >= totalPages - 1 || isLoading}
-              onClick={() => setCurrentPage((p) => p + 1)}
-              className="h-8 px-2.5"
-              aria-label="Next Page"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          totalElements={totalElements}
+          pageSize={pageSize}
+          onPageSizeChange={(newSize) => {
+            setPageSize(newSize);
+            setCurrentPage(0);
+          }}
+          showingCount={expenses.length}
+          isLoading={isLoading}
+        />
       </Card>
 
       {/* Create / Edit Modal */}

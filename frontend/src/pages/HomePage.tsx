@@ -43,6 +43,7 @@ import { useExpenseSummary, useMyExpenses, useCreateExpense } from '../hooks/use
 import { ExpenseModal } from '../components/ExpenseModal';
 import { useToast } from '../components/ui/Toast';
 import { ExpenseRequest, ExpenseSummaryParams } from '../types';
+import { getErrorMessage } from '../utils/errorHandling';
 
 type DatePreset = 'ALL' | 'THIS_MONTH' | 'LAST_30_DAYS' | 'LAST_3_MONTHS' | 'THIS_YEAR' | 'CUSTOM';
 
@@ -352,8 +353,10 @@ export const HomePage: React.FC = () => {
       await createExpenseMutation.mutateAsync(data);
       showToast('success', 'Expense Added', `Added ${data.description} (${formatCurrency(data.amount)})`);
       setIsModalOpen(false);
-    } catch {
-      showToast('error', 'Error', 'Could not create expense. Please try again.');
+    } catch (err: unknown) {
+      const msg = getErrorMessage(err, 'Could not create expense. Please try again.');
+      showToast('error', 'Error', msg);
+      throw err;
     }
   };
 
@@ -443,9 +446,10 @@ export const HomePage: React.FC = () => {
             <div>
               <h3 className="text-base font-bold text-danger">Failed to load analytics dashboard</h3>
               <p className="text-xs text-muted mt-1">
-                {(summaryError as Error)?.message ||
-                  (expensesError as Error)?.message ||
-                  'Could not connect to the backend server. Please verify your connection and try again.'}
+                {getErrorMessage(
+                  summaryError || expensesError,
+                  'Could not connect to the backend server. Please verify your connection and try again.'
+                )}
               </p>
             </div>
           </div>

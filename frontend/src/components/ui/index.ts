@@ -9,3 +9,4 @@ export * from './Modal';
 export * from './Table';
 export * from './Skeleton';
 export * from './Toast';
+export * from './Pagination';

@@ -3,6 +3,10 @@ target/
 **/target/
 build/
 **/build/
+dist/
+**/dist/
+node_modules/
+**/node_modules/
 
 # IDE & Editor files
 .idea/
@@ -17,9 +21,14 @@ build/
 # Maven Wrapper
 .mvn/wrapper/maven-wrapper.jar
 
-# Environment & Logs
-*.log
+# Environment & Secret Files
 .env
+.env.*
+!.env.example
+!.env.*.example
+
+# Logs
+*.log
 
 # OS Files
 .DS_Store

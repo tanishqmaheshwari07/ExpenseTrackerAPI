@@ -4,13 +4,13 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation } from '@tanstack/react-query';
-import { AxiosError } from 'axios';
 import { Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { Card, Button, Input } from '../components/ui';
 import { authApi } from '../services/api/authApi';
 import { useAuthStore } from '../store/authStore';
 import { useToast } from '../components/ui/Toast';
-import { LoginRequest, ApiResponse } from '../types';
+import { LoginRequest } from '../types';
+import { parseApiError, applyServerFieldErrors } from '../utils/errorHandling';
 
 const loginSchema = z.object({
   email: z
@@ -37,6 +37,7 @@ export const LoginPage: React.FC = () => {
     register,
     handleSubmit,
     setValue,
+    setError,
     formState: { errors },
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -61,13 +62,10 @@ export const LoginPage: React.FC = () => {
         navigate(destination, { replace: true });
       }
     },
-    onError: (error: AxiosError<ApiResponse>) => {
-      if (error.response?.status === 401) {
-        setErrorMessage('Invalid email or password.');
-      } else {
-        const backendMessage = error.response?.data?.message || 'Login failed. Please try again.';
-        setErrorMessage(backendMessage);
-      }
+    onError: (error: unknown) => {
+      const parsed = parseApiError(error, 'Sign in failed. Please check your credentials and try again.');
+      setErrorMessage(parsed.message);
+      applyServerFieldErrors(error, setError);
     },
   });
 

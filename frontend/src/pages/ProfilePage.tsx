@@ -28,6 +28,7 @@ import { useAuthStore } from '../store/authStore';
 import { authApi } from '../services/api/authApi';
 import { useToast } from '../components/ui/Toast';
 import { formatDate } from '../utils/formatters';
+import { getErrorMessage, applyServerFieldErrors } from '../utils/errorHandling';
 
 // Profile form schema
 const profileSchema = z.object({
@@ -77,6 +78,7 @@ export const ProfilePage: React.FC = () => {
     register: registerInfo,
     handleSubmit: handleSubmitInfo,
     reset: resetInfo,
+    setError: setInfoError,
     formState: { errors: infoErrors },
   } = useForm<ProfileFormData>({
     resolver: zodResolver(profileSchema),
@@ -102,6 +104,7 @@ export const ProfilePage: React.FC = () => {
     register: registerPassword,
     handleSubmit: handleSubmitPassword,
     reset: resetPassword,
+    setError: setPasswordError,
     formState: { errors: passwordErrors },
   } = useForm<PasswordFormData>({
     resolver: zodResolver(passwordSchema),
@@ -129,8 +132,10 @@ export const ProfilePage: React.FC = () => {
       showToast('success', 'Profile updated', 'Your account details have been saved.');
       setIsEditingInfo(false);
     },
-    onError: () => {
-      showToast('error', 'Update failed', 'Could not update your profile. Please try again.');
+    onError: (error: unknown) => {
+      const msg = getErrorMessage(error, 'Could not update your profile. Please try again.');
+      applyServerFieldErrors(error, setInfoError);
+      showToast('error', 'Update failed', msg);
     },
   });
 
@@ -147,8 +152,10 @@ export const ProfilePage: React.FC = () => {
       showToast('success', 'Password updated', 'Your password has been changed successfully.');
       resetPassword();
     },
-    onError: () => {
-      showToast('error', 'Password update failed', 'Could not update password. Please try again.');
+    onError: (error: unknown) => {
+      const msg = getErrorMessage(error, 'Could not update password. Please try again.');
+      applyServerFieldErrors(error, setPasswordError);
+      showToast('error', 'Password update failed', msg);
     },
   });
 
@@ -163,8 +170,9 @@ export const ProfilePage: React.FC = () => {
       logout();
       navigate('/');
     },
-    onError: () => {
-      showToast('error', 'Deletion failed', 'Could not delete account. Please try again.');
+    onError: (error: unknown) => {
+      const msg = getErrorMessage(error, 'Could not delete account. Please try again.');
+      showToast('error', 'Deletion failed', msg);
     },
   });
 
@@ -196,30 +204,30 @@ export const ProfilePage: React.FC = () => {
       {/* ============================================================ */}
       {/* 1. USER INFO CARD                                            */}
       {/* ============================================================ */}
-      <Card className="p-6 sm:p-8">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-          <div className="flex items-center gap-5">
+      <Card className="p-5 sm:p-8">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5 sm:gap-6">
+          <div className="flex items-center gap-4 sm:gap-5 min-w-0">
             {/* Avatar Initials Circle (accent-start bg) */}
-            <div className="w-20 h-20 rounded-full bg-accent-start text-white flex items-center justify-center font-extrabold text-3xl shadow-sm shrink-0 ring-4 ring-blue-50">
+            <div className="w-14 h-14 sm:w-20 sm:h-20 rounded-full bg-accent-start text-white flex items-center justify-center font-extrabold text-xl sm:text-3xl shadow-sm shrink-0 ring-4 ring-blue-50">
               {currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
             </div>
 
-            <div className="space-y-1">
-              <div className="flex items-center gap-2.5 flex-wrap">
-                <h1 className="text-2xl font-bold tracking-tight text-ink">
+            <div className="space-y-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-ink truncate">
                   {currentUser?.name || 'User Profile'}
                 </h1>
-                <Badge variant={currentUser?.role === 'ROLE_ADMIN' ? 'accent' : 'neutral'}>
+                <Badge variant={currentUser?.role === 'ROLE_ADMIN' ? 'accent' : 'neutral'} size="sm">
                   {currentUser?.role === 'ROLE_ADMIN' ? 'Admin' : 'Personal Member'}
                 </Badge>
               </div>
 
-              <p className="text-sm text-muted">{currentUser?.email}</p>
+              <p className="text-xs sm:text-sm text-muted truncate">{currentUser?.email}</p>
 
               {/* Member Since Date */}
-              <div className="flex items-center gap-1.5 text-xs text-faint pt-1">
-                <Calendar className="w-3.5 h-3.5 text-muted" />
-                <span>
+              <div className="flex items-center gap-1.5 text-xs text-faint pt-0.5">
+                <Calendar className="w-3.5 h-3.5 text-muted shrink-0" />
+                <span className="truncate">
                   Member since{' '}
                   {currentUser?.createdAt
                     ? formatDate(currentUser.createdAt)
@@ -229,7 +237,7 @@ export const ProfilePage: React.FC = () => {
             </div>
           </div>
 
-          <div>
+          <div className="w-full sm:w-auto flex justify-end">
             <Button
               variant={isEditingInfo ? 'secondary' : 'primary'}
               onClick={() => {
@@ -239,6 +247,7 @@ export const ProfilePage: React.FC = () => {
                 setIsEditingInfo((prev) => !prev);
               }}
               size="sm"
+              className="w-full sm:w-auto"
             >
               {isEditingInfo ? 'Cancel' : 'Edit Info'}
             </Button>

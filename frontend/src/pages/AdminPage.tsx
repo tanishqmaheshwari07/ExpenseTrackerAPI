@@ -41,6 +41,7 @@ import { useToast } from '../components/ui/Toast';
 import { formatDate, formatCurrency } from '../utils/formatters';
 import { Role, AdminUser } from '../types';
 import { useAdminUsers, useUpdateUserRole, useDeleteUser } from '../hooks/useAdmin';
+import { getErrorMessage } from '../utils/errorHandling';
 
 export const AdminPage: React.FC = () => {
   const { user: currentUser } = useAuthStore();
@@ -112,9 +113,8 @@ export const AdminPage: React.FC = () => {
       );
       setEditingRoleUser(null);
     } catch (err: unknown) {
-      const errorMessage =
-        err instanceof Error ? err.message : 'Failed to update role. Please try again.';
-      showToast('error', 'Update failed', errorMessage);
+      const msg = getErrorMessage(err, 'Failed to update role. Please try again.');
+      showToast('error', 'Update failed', msg);
     }
   };
 
@@ -128,9 +128,8 @@ export const AdminPage: React.FC = () => {
       showToast('info', 'User deleted', `Removed ${deletingUser.name} from directory.`);
       setDeletingUser(null);
     } catch (err: unknown) {
-      const errorMessage =
-        err instanceof Error ? err.message : 'Failed to delete user. Please try again.';
-      showToast('error', 'Delete failed', errorMessage);
+      const msg = getErrorMessage(err, 'Failed to delete user. Please try again.');
+      showToast('error', 'Delete failed', msg);
     }
   };
 
@@ -199,7 +198,7 @@ export const AdminPage: React.FC = () => {
             <div>
               <h4 className="text-sm font-semibold text-danger">Failed to load user directory</h4>
               <p className="text-xs text-muted mt-0.5">
-                {(error as Error)?.message || 'An error occurred while fetching user data. Ensure you are authorized as ADMIN.'}
+                {getErrorMessage(error, 'An error occurred while fetching user data. Ensure you are authorized as ADMIN.')}
               </p>
             </div>
           </div>
@@ -215,107 +214,184 @@ export const AdminPage: React.FC = () => {
           <CardHeader className="px-6 pt-5 pb-3 border-b border-border">
             <CardTitle className="text-base font-bold">User Directory</CardTitle>
             <CardDescription>
-              Click any row to open the user's spending summary drawer.
+              Click any row or card to open the user's spending summary drawer.
             </CardDescription>
           </CardHeader>
 
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>User</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Created Date</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredUsers.length > 0 ? (
-                filteredUsers.map((userItem) => (
-                  <TableRow
-                    key={userItem.id}
-                    onClick={() => setSelectedUser(userItem)}
-                    className="cursor-pointer hover:bg-surface/80 transition-colors"
-                  >
-                    {/* Name + Avatar */}
-                    <TableCell className="font-semibold text-ink">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full bg-accent-start text-white text-xs font-bold flex items-center justify-center shrink-0">
-                          {userItem.name ? userItem.name.charAt(0).toUpperCase() : 'U'}
+          {/* Desktop / Tablet Table View (>= 640px) */}
+          <div className="hidden sm:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>User</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Created Date</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredUsers.length > 0 ? (
+                  filteredUsers.map((userItem) => (
+                    <TableRow
+                      key={userItem.id}
+                      onClick={() => setSelectedUser(userItem)}
+                      className="cursor-pointer hover:bg-surface/80 transition-colors"
+                    >
+                      {/* Name + Avatar */}
+                      <TableCell className="font-semibold text-ink">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-full bg-accent-start text-white text-xs font-bold flex items-center justify-center shrink-0">
+                            {userItem.name ? userItem.name.charAt(0).toUpperCase() : 'U'}
+                          </div>
+                          <span className="truncate">{userItem.name}</span>
                         </div>
-                        <span className="truncate">{userItem.name}</span>
-                      </div>
-                    </TableCell>
+                      </TableCell>
 
-                    {/* Email */}
-                    <TableCell className="text-muted text-xs">{userItem.email}</TableCell>
+                      {/* Email */}
+                      <TableCell className="text-muted text-xs">{userItem.email}</TableCell>
 
-                    {/* Role Badge */}
-                    <TableCell>
-                      <Badge variant={userItem.role === 'ROLE_ADMIN' ? 'accent' : 'neutral'}>
-                        {userItem.role === 'ROLE_ADMIN' ? 'Admin' : 'User'}
-                      </Badge>
-                    </TableCell>
+                      {/* Role Badge */}
+                      <TableCell>
+                        <Badge variant={userItem.role === 'ROLE_ADMIN' ? 'accent' : 'neutral'}>
+                          {userItem.role === 'ROLE_ADMIN' ? 'Admin' : 'User'}
+                        </Badge>
+                      </TableCell>
 
-                    {/* Created Date */}
-                    <TableCell className="text-xs text-muted">
-                      {userItem.createdAt ? formatDate(userItem.createdAt) : 'N/A'}
-                    </TableCell>
+                      {/* Created Date */}
+                      <TableCell className="text-xs text-muted">
+                        {userItem.createdAt ? formatDate(userItem.createdAt) : 'N/A'}
+                      </TableCell>
 
-                    {/* Actions (view, edit role, delete) */}
-                    <TableCell className="text-right">
-                      <div
-                        className="flex items-center justify-end gap-1"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <button
-                          onClick={() => setSelectedUser(userItem)}
-                          className="p-1.5 rounded-lg text-muted hover:text-ink hover:bg-surface transition-colors"
-                          title="View user details"
-                          aria-label="View user details"
+                      {/* Actions (view, edit role, delete) */}
+                      <TableCell className="text-right">
+                        <div
+                          className="flex items-center justify-end gap-1"
+                          onClick={(e) => e.stopPropagation()}
                         >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={(e) => handleOpenEditRole(userItem, e)}
-                          className="p-1.5 rounded-lg text-muted hover:text-accent-end hover:bg-surface transition-colors"
-                          title="Edit user role"
-                          aria-label="Edit user role"
-                        >
-                          <Edit3 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setDeletingUser(userItem);
-                          }}
-                          className="p-1.5 rounded-lg text-muted hover:text-danger hover:bg-red-50 transition-colors"
-                          title="Delete user"
-                          aria-label="Delete user"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                          <button
+                            onClick={() => setSelectedUser(userItem)}
+                            className="p-1.5 rounded-lg text-muted hover:text-ink hover:bg-surface transition-colors"
+                            title="View user details"
+                            aria-label="View user details"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={(e) => handleOpenEditRole(userItem, e)}
+                            className="p-1.5 rounded-lg text-muted hover:text-accent-end hover:bg-surface transition-colors"
+                            title="Edit user role"
+                            aria-label="Edit user role"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeletingUser(userItem);
+                            }}
+                            className="p-1.5 rounded-lg text-muted hover:text-danger hover:bg-red-50 transition-colors"
+                            title="Delete user"
+                            aria-label="Delete user"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={5} className="py-12 text-center text-muted text-xs">
+                      <div className="flex flex-col items-center justify-center space-y-2">
+                        <UserX className="w-8 h-8 text-faint" />
+                        <p className="font-medium text-ink">No users found</p>
+                        <p className="text-muted">
+                          {searchQuery
+                            ? `No user records matched "${searchQuery}".`
+                            : 'There are currently no registered users in the database.'}
+                        </p>
                       </div>
                     </TableCell>
                   </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={5} className="py-12 text-center text-muted text-xs">
-                    <div className="flex flex-col items-center justify-center space-y-2">
-                      <UserX className="w-8 h-8 text-faint" />
-                      <p className="font-medium text-ink">No users found</p>
-                      <p className="text-muted">
-                        {searchQuery
-                          ? `No user records matched "${searchQuery}".`
-                          : 'There are currently no registered users in the database.'}
-                      </p>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Mobile Stacked Card List (< 640px) */}
+          <div className="block sm:hidden divide-y divide-border">
+            {filteredUsers.length > 0 ? (
+              filteredUsers.map((userItem) => (
+                <div
+                  key={userItem.id}
+                  onClick={() => setSelectedUser(userItem)}
+                  className="p-4 hover:bg-surface transition-colors active:bg-surface cursor-pointer space-y-2.5"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-full bg-accent-start text-white text-xs font-bold flex items-center justify-center shrink-0">
+                        {userItem.name ? userItem.name.charAt(0).toUpperCase() : 'U'}
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="font-semibold text-sm text-ink truncate">{userItem.name}</h4>
+                        <p className="text-xs text-muted truncate">{userItem.email}</p>
+                      </div>
                     </div>
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+                    <Badge variant={userItem.role === 'ROLE_ADMIN' ? 'accent' : 'neutral'} size="sm">
+                      {userItem.role === 'ROLE_ADMIN' ? 'Admin' : 'User'}
+                    </Badge>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1 text-xs text-muted">
+                    <span>Joined {userItem.createdAt ? formatDate(userItem.createdAt) : 'N/A'}</span>
+                    <div
+                      className="flex items-center gap-1.5"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        onClick={() => setSelectedUser(userItem)}
+                        className="p-1.5 rounded-lg text-muted hover:text-ink hover:bg-surface"
+                        title="View user details"
+                        aria-label="View user details"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={(e) => handleOpenEditRole(userItem, e)}
+                        className="p-1.5 rounded-lg text-muted hover:text-accent-end hover:bg-surface"
+                        title="Edit user role"
+                        aria-label="Edit user role"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeletingUser(userItem);
+                        }}
+                        className="p-1.5 rounded-lg text-muted hover:text-danger hover:bg-red-50"
+                        title="Delete user"
+                        aria-label="Delete user"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="py-12 px-4 text-center text-muted text-xs space-y-2">
+                <UserX className="w-8 h-8 text-faint mx-auto" />
+                <p className="font-medium text-ink">No users found</p>
+                <p className="text-muted">
+                  {searchQuery
+                    ? `No user records matched "${searchQuery}".`
+                    : 'There are currently no registered users in the database.'}
+                </p>
+              </div>
+            )}
+          </div>
         </Card>
       )}
 

@@ -35,17 +35,17 @@ export const LandingPage: React.FC = () => {
       {/* TOP NAVIGATION BAR                                            */}
       {/* ============================================================ */}
       <header className="sticky top-0 z-50 bg-white/85 backdrop-blur-md border-b border-border transition-all">
-        <div className="max-w-7xl mx-auto px-4 sm:px-8 h-20 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 sm:px-8 h-16 sm:h-20 flex items-center justify-between">
           {/* Logo Left */}
-          <Link to="/" className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-pill bg-ink text-white flex items-center justify-center font-bold text-base shadow-sm">
-              <WalletCards className="w-5 h-5" />
+          <Link to="/" className="flex items-center gap-2">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-pill bg-ink text-white flex items-center justify-center font-bold text-sm sm:text-base shadow-sm shrink-0">
+              <WalletCards className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
             <div className="flex flex-col">
-              <span className="text-lg font-extrabold tracking-tight text-ink">
+              <span className="text-base sm:text-lg font-extrabold tracking-tight text-ink">
                 Expense<span className="text-accent-end">Tracker</span>
               </span>
-              <span className="text-[10px] font-semibold text-faint uppercase tracking-wider -mt-1">
+              <span className="text-[9px] sm:text-[10px] font-semibold text-faint uppercase tracking-wider -mt-1">
                 Financial Suite
               </span>
             </div>
@@ -68,27 +68,30 @@ export const LandingPage: React.FC = () => {
           </nav>
 
           {/* Right Actions */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
             {isAuthenticated ? (
               <Button
                 variant="primary"
+                size="sm"
                 onClick={() => navigate('/dashboard')}
                 rightIcon={<ArrowRight className="w-4 h-4" />}
+                className="text-xs sm:text-sm"
               >
-                Go to Dashboard
+                Dashboard
               </Button>
             ) : (
               <>
                 <Link
                   to="/login"
-                  className="text-sm font-semibold text-muted hover:text-ink transition-colors px-2 py-1"
+                  className="text-xs sm:text-sm font-semibold text-muted hover:text-ink transition-colors px-2 py-1"
                 >
                   Log in
                 </Link>
                 <Button
                   variant="primary"
+                  size="sm"
                   onClick={handleGetStarted}
-                  className="px-5 shadow-sm"
+                  className="px-3.5 sm:px-5 text-xs sm:text-sm shadow-sm"
                 >
                   Get started
                 </Button>
@@ -101,7 +104,7 @@ export const LandingPage: React.FC = () => {
       {/* ============================================================ */}
       {/* HERO SECTION                                                 */}
       {/* ============================================================ */}
-      <section className="relative pt-16 pb-20 sm:pt-24 sm:pb-28 overflow-hidden">
+      <section className="relative pt-12 pb-16 sm:pt-24 sm:pb-28 overflow-hidden">
         {/* Subtle Background Glows */}
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[350px] bg-gradient-to-tr from-accent-start/5 via-accent-end/10 to-transparent rounded-full blur-3xl pointer-events-none" />
 
@@ -111,7 +114,7 @@ export const LandingPage: React.FC = () => {
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-pill bg-surface border border-border text-xs font-semibold text-ink mb-6 shadow-sm"
+            className="inline-flex items-center gap-2 px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-pill bg-surface border border-border text-[11px] sm:text-xs font-semibold text-ink mb-6 shadow-sm"
           >
             <span className="w-2 h-2 rounded-full bg-accent-end animate-ping" />
             <span>Next-Gen Personal Finance & Budgeting</span>
@@ -122,7 +125,7 @@ export const LandingPage: React.FC = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.1 }}
-            className="text-4xl sm:text-6xl lg:text-7xl font-extrabold text-ink tracking-tight leading-[1.1]"
+            className="text-3xl sm:text-6xl lg:text-7xl font-extrabold text-ink tracking-tight leading-[1.15] sm:leading-[1.1]"
           >
             Know exactly where <br className="hidden sm:inline" />
             <span className="bg-gradient-to-r from-ink via-neutral-800 to-neutral-600 bg-clip-text text-transparent">
@@ -135,7 +138,7 @@ export const LandingPage: React.FC = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="mt-6 text-lg sm:text-xl text-muted max-w-2xl mx-auto leading-relaxed"
+            className="mt-5 sm:mt-6 text-base sm:text-xl text-muted max-w-2xl mx-auto leading-relaxed"
           >
             Effortlessly monitor transactions, categorize daily spending, and unlock automated
             budget insights with a sleek, ultra-fast interface.
@@ -146,7 +149,7 @@ export const LandingPage: React.FC = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.3 }}
-            className="mt-8 flex flex-wrap items-center justify-center gap-4 sm:gap-8 text-xs sm:text-sm font-medium text-muted"
+            className="mt-6 sm:mt-8 flex flex-col sm:flex-row items-center justify-center gap-2.5 sm:gap-8 text-xs sm:text-sm font-medium text-muted"
           >
             <div className="flex items-center gap-1.5">
               <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
@@ -167,7 +170,7 @@ export const LandingPage: React.FC = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.4 }}
-            className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4"
+            className="mt-8 sm:mt-10 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4"
           >
             {/* Solid Black Pill "Get started" */}
             <Button

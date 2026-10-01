@@ -8,6 +8,7 @@ import { useExpenseById, useUpdateExpense, useDeleteExpense } from '../hooks/use
 import { formatCurrency, formatDate, CATEGORY_META } from '../utils/formatters';
 import { useToast } from '../components/ui/Toast';
 import { ExpenseRequest } from '../types';
+import { getErrorMessage } from '../utils/errorHandling';
 
 export const ExpenseDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -28,19 +29,24 @@ export const ExpenseDetailPage: React.FC = () => {
       await updateMutation.mutateAsync({ id: expense.id, data: formData });
       showToast('success', 'Expense updated', `Updated ${formData.description}`);
       setIsEditModalOpen(false);
-    } catch {
-      showToast('error', 'Update failed', 'Could not update expense.');
+    } catch (err: unknown) {
+      const msg = getErrorMessage(err, 'Could not update expense.');
+      showToast('error', 'Update failed', msg);
+      throw err;
     }
   };
 
   const handleDelete = async () => {
-    if (!expense) return;
+    if (!expense || deleteMutation.isPending) return;
+    const targetId = expense.id;
+    setIsDeleteModalOpen(false);
     try {
-      await deleteMutation.mutateAsync(expense.id);
+      await deleteMutation.mutateAsync(targetId);
       showToast('info', 'Expense deleted', 'The expense record was removed.');
       navigate('/expenses');
-    } catch {
-      showToast('error', 'Delete failed', 'Could not delete expense.');
+    } catch (err: unknown) {
+      const msg = getErrorMessage(err, 'Could not delete expense.');
+      showToast('error', 'Delete failed', msg);
     }
   };
 
