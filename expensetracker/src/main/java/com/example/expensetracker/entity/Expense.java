@@ -25,7 +25,7 @@ import java.time.LocalDate;
                 @Index(name = "idx_expenses_user_id_category", columnList = "user_id, category")
         }
 )
-@SQLDelete(sql = "UPDATE expenses SET is_deleted = true, updated_at = NOW() WHERE id = ?")
+@SQLDelete(sql = "UPDATE expenses SET is_deleted = true, updated_at = NOW() WHERE id = ? AND version = ?")
 @SQLRestriction("is_deleted = false")
 @NoArgsConstructor
 @AllArgsConstructor
