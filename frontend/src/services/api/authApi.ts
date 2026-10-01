@@ -4,10 +4,10 @@ import {
   AuthResponse,
   LoginRequest,
   User,
+  AdminUser,
   UserRequest,
-  RefreshTokenRequest,
+  Role,
 } from '../../types';
-import { useAuthStore } from '../../store/authStore';
 
 export const authApi = {
   /**
@@ -21,7 +21,7 @@ export const authApi = {
 
   /**
    * Authenticate user credentials and retrieve JWT tokens
-   * POST /api/users/login
+   * POST /api/users/login (sets HttpOnly refresh cookie)
    */
   login: async (payload: LoginRequest): Promise<ApiResponse<AuthResponse>> => {
     const res = await apiClient.post<ApiResponse<AuthResponse>>('/users/login', payload);
@@ -29,14 +29,20 @@ export const authApi = {
   },
 
   /**
-   * Refresh JWT access token with stored refresh token
+   * Refresh JWT access token with HttpOnly refresh cookie
    * POST /api/users/refresh-token
    */
-  refreshToken: async (payload?: RefreshTokenRequest): Promise<ApiResponse<AuthResponse>> => {
-    const token = payload?.refreshToken || useAuthStore.getState().refreshToken || '';
-    const res = await apiClient.post<ApiResponse<AuthResponse>>('/users/refresh-token', {
-      refreshToken: token,
-    });
+  refreshToken: async (): Promise<ApiResponse<AuthResponse>> => {
+    const res = await apiClient.post<ApiResponse<AuthResponse>>('/users/refresh-token', {});
+    return res.data;
+  },
+
+  /**
+   * Logout current user and clear HttpOnly refresh cookie on server
+   * POST /api/users/logout
+   */
+  logout: async (): Promise<ApiResponse<void>> => {
+    const res = await apiClient.post<ApiResponse<void>>('/users/logout', {});
     return res.data;
   },
 
@@ -50,11 +56,29 @@ export const authApi = {
   },
 
   /**
+   * Get all registered users with summary statistics (Admin only)
+   * GET /api/users
+   */
+  getUsers: async (): Promise<ApiResponse<AdminUser[]>> => {
+    const res = await apiClient.get<ApiResponse<AdminUser[]>>('/users');
+    return res.data;
+  },
+
+  /**
    * Update user details (name, email, or password)
    * PUT /api/users/{id}
    */
   updateUser: async (id: number, payload: UserRequest): Promise<ApiResponse<User>> => {
     const res = await apiClient.put<ApiResponse<User>>(`/users/${id}`, payload);
+    return res.data;
+  },
+
+  /**
+   * Update user role (Admin only)
+   * PATCH /api/users/{id}/role
+   */
+  updateUserRole: async (id: number, role: Role): Promise<ApiResponse<User>> => {
+    const res = await apiClient.patch<ApiResponse<User>>(`/users/${id}/role`, { role });
     return res.data;
   },
 

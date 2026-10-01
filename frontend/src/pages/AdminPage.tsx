@@ -13,6 +13,10 @@ import {
   TrendingUp,
   Tag,
   Check,
+  Loader2,
+  AlertCircle,
+  RefreshCw,
+  UserX,
 } from 'lucide-react';
 import {
   Card,
@@ -35,79 +39,8 @@ import {
 import { useAuthStore } from '../store/authStore';
 import { useToast } from '../components/ui/Toast';
 import { formatDate, formatCurrency } from '../utils/formatters';
-import { User, Role } from '../types';
-
-interface AdminUserItem extends User {
-  status?: string;
-  totalSpend?: number;
-  transactionsCount?: number;
-  avgTicket?: number;
-  activeCategories?: number;
-}
-
-// TODO: backend endpoint needed - Mock initial user list until GET /api/users admin listing endpoint is exposed
-const MOCK_ADMIN_USERS: AdminUserItem[] = [
-  {
-    id: 1,
-    name: 'Admin Master',
-    email: 'admin@expensetracker.com',
-    role: 'ROLE_ADMIN',
-    createdAt: '2024-01-10T08:00:00Z',
-    status: 'Active',
-    totalSpend: 4250.0,
-    transactionsCount: 38,
-    avgTicket: 111.84,
-    activeCategories: 6,
-  },
-  {
-    id: 2,
-    name: 'Alex Morgan',
-    email: 'alex.morgan@example.com',
-    role: 'ROLE_USER',
-    createdAt: '2024-03-15T10:30:00Z',
-    status: 'Active',
-    totalSpend: 1840.5,
-    transactionsCount: 22,
-    avgTicket: 83.65,
-    activeCategories: 5,
-  },
-  {
-    id: 3,
-    name: 'Sarah Jenkins',
-    email: 'sarah.j@example.com',
-    role: 'ROLE_USER',
-    createdAt: '2024-05-20T14:15:00Z',
-    status: 'Active',
-    totalSpend: 2950.0,
-    transactionsCount: 31,
-    avgTicket: 95.16,
-    activeCategories: 7,
-  },
-  {
-    id: 4,
-    name: 'David Kim',
-    email: 'david.k@example.com',
-    role: 'ROLE_USER',
-    createdAt: '2024-07-04T09:00:00Z',
-    status: 'Active',
-    totalSpend: 620.0,
-    transactionsCount: 8,
-    avgTicket: 77.5,
-    activeCategories: 3,
-  },
-  {
-    id: 5,
-    name: 'Elena Rostova',
-    email: 'elena.r@example.com',
-    role: 'ROLE_USER',
-    createdAt: '2024-08-18T16:45:00Z',
-    status: 'Inactive',
-    totalSpend: 310.0,
-    transactionsCount: 4,
-    avgTicket: 77.5,
-    activeCategories: 2,
-  },
-];
+import { Role, AdminUser } from '../types';
+import { useAdminUsers, useUpdateUserRole, useDeleteUser } from '../hooks/useAdmin';
 
 export const AdminPage: React.FC = () => {
   const { user: currentUser } = useAuthStore();
@@ -118,20 +51,33 @@ export const AdminPage: React.FC = () => {
     currentUser?.role === 'ROLE_ADMIN' ||
     currentUser?.role === ('ADMIN' as unknown);
 
-  const [users, setUsers] = useState<AdminUserItem[]>(MOCK_ADMIN_USERS);
+  // Server state with React Query
+  const {
+    data: users = [],
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useAdminUsers();
+
+  const updateRoleMutation = useUpdateUserRole();
+  const deleteUserMutation = useDeleteUser();
+
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedUser, setSelectedUser] = useState<AdminUserItem | null>(null);
+  const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
 
   // Edit Role Modal State
-  const [editingRoleUser, setEditingRoleUser] = useState<AdminUserItem | null>(null);
+  const [editingRoleUser, setEditingRoleUser] = useState<AdminUser | null>(null);
   const [selectedRole, setSelectedRole] = useState<Role>('ROLE_USER');
 
   // Delete User Modal State
-  const [deletingUser, setDeletingUser] = useState<AdminUserItem | null>(null);
+  const [deletingUser, setDeletingUser] = useState<AdminUser | null>(null);
 
-  if (!isAdmin) {
-    return <Navigate to="/dashboard" replace />;
-  }
+  // Keep selectedUser in drawer in sync with updated query data
+  const currentSelectedUser = useMemo(() => {
+    if (!selectedUser) return null;
+    return users.find((u) => u.id === selectedUser.id) || null;
+  }, [selectedUser, users]);
 
   // Filter users by name or email
   const filteredUsers = useMemo(() => {
@@ -142,32 +88,50 @@ export const AdminPage: React.FC = () => {
     );
   }, [users, searchQuery]);
 
-  const handleOpenEditRole = (user: AdminUserItem, e: React.MouseEvent) => {
+  if (!isAdmin) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  const handleOpenEditRole = (user: AdminUser, e: React.MouseEvent) => {
     e.stopPropagation();
     setEditingRoleUser(user);
     setSelectedRole(user.role || 'ROLE_USER');
   };
 
-  const handleSaveRole = () => {
+  const handleSaveRole = async () => {
     if (!editingRoleUser) return;
-    setUsers((prev) =>
-      prev.map((u) => (u.id === editingRoleUser.id ? { ...u, role: selectedRole } : u))
-    );
-    if (selectedUser && selectedUser.id === editingRoleUser.id) {
-      setSelectedUser((prev) => (prev ? { ...prev, role: selectedRole } : null));
+    try {
+      await updateRoleMutation.mutateAsync({
+        id: editingRoleUser.id,
+        role: selectedRole,
+      });
+      showToast(
+        'success',
+        'Role updated',
+        `Updated role for ${editingRoleUser.name} to ${selectedRole}`
+      );
+      setEditingRoleUser(null);
+    } catch (err: unknown) {
+      const errorMessage =
+        err instanceof Error ? err.message : 'Failed to update role. Please try again.';
+      showToast('error', 'Update failed', errorMessage);
     }
-    showToast('success', 'Role updated', `Updated role for ${editingRoleUser.name} to ${selectedRole}`);
-    setEditingRoleUser(null);
   };
 
-  const handleDeleteUser = () => {
+  const handleDeleteUser = async () => {
     if (!deletingUser) return;
-    setUsers((prev) => prev.filter((u) => u.id !== deletingUser.id));
-    if (selectedUser && selectedUser.id === deletingUser.id) {
-      setSelectedUser(null);
+    try {
+      await deleteUserMutation.mutateAsync(deletingUser.id);
+      if (selectedUser && selectedUser.id === deletingUser.id) {
+        setSelectedUser(null);
+      }
+      showToast('info', 'User deleted', `Removed ${deletingUser.name} from directory.`);
+      setDeletingUser(null);
+    } catch (err: unknown) {
+      const errorMessage =
+        err instanceof Error ? err.message : 'Failed to delete user. Please try again.';
+      showToast('error', 'Delete failed', errorMessage);
     }
-    showToast('info', 'User deleted', `Removed ${deletingUser.name} from directory.`);
-    setDeletingUser(null);
   };
 
   return (
@@ -188,6 +152,15 @@ export const AdminPage: React.FC = () => {
             </p>
           </div>
         </div>
+
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => refetch()}
+          leftIcon={<RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />}
+        >
+          Refresh Data
+        </Button>
       </div>
 
       {/* Filter and Search Bar */}
@@ -203,116 +176,154 @@ export const AdminPage: React.FC = () => {
           </div>
 
           <div className="text-xs text-muted">
-            Showing <strong className="text-ink">{filteredUsers.length}</strong> registered user(s)
+            Showing <strong className="text-ink">{filteredUsers.length}</strong> of{' '}
+            <strong className="text-ink">{users.length}</strong> registered user(s)
           </div>
         </div>
       </Card>
 
+      {/* Loading State */}
+      {isLoading && (
+        <Card className="p-12 flex flex-col items-center justify-center text-center space-y-3">
+          <Loader2 className="w-8 h-8 text-accent-start animate-spin" />
+          <p className="text-sm font-medium text-ink">Loading user directory...</p>
+          <p className="text-xs text-muted">Fetching registered accounts and financial analytics from backend.</p>
+        </Card>
+      )}
+
+      {/* Error State */}
+      {isError && !isLoading && (
+        <Card className="p-8 border border-red-200 bg-red-50/50 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="w-6 h-6 text-danger shrink-0" />
+            <div>
+              <h4 className="text-sm font-semibold text-danger">Failed to load user directory</h4>
+              <p className="text-xs text-muted mt-0.5">
+                {(error as Error)?.message || 'An error occurred while fetching user data. Ensure you are authorized as ADMIN.'}
+              </p>
+            </div>
+          </div>
+          <Button variant="primary" size="sm" onClick={() => refetch()} leftIcon={<RefreshCw className="w-4 h-4" />}>
+            Try Again
+          </Button>
+        </Card>
+      )}
+
       {/* Users Table */}
-      <Card className="p-0 overflow-hidden">
-        <CardHeader className="px-6 pt-5 pb-3 border-b border-border">
-          <CardTitle className="text-base font-bold">User Directory</CardTitle>
-          <CardDescription>
-            Click any row to open the user's spending summary drawer.
-          </CardDescription>
-        </CardHeader>
+      {!isLoading && !isError && (
+        <Card className="p-0 overflow-hidden">
+          <CardHeader className="px-6 pt-5 pb-3 border-b border-border">
+            <CardTitle className="text-base font-bold">User Directory</CardTitle>
+            <CardDescription>
+              Click any row to open the user's spending summary drawer.
+            </CardDescription>
+          </CardHeader>
 
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>User</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead>Created Date</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredUsers.length > 0 ? (
-              filteredUsers.map((userItem) => (
-                <TableRow
-                  key={userItem.id}
-                  onClick={() => setSelectedUser(userItem)}
-                  className="cursor-pointer hover:bg-surface/80 transition-colors"
-                >
-                  {/* Name + Avatar */}
-                  <TableCell className="font-semibold text-ink">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-full bg-accent-start text-white text-xs font-bold flex items-center justify-center shrink-0">
-                        {userItem.name.charAt(0).toUpperCase()}
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>User</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead>Created Date</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredUsers.length > 0 ? (
+                filteredUsers.map((userItem) => (
+                  <TableRow
+                    key={userItem.id}
+                    onClick={() => setSelectedUser(userItem)}
+                    className="cursor-pointer hover:bg-surface/80 transition-colors"
+                  >
+                    {/* Name + Avatar */}
+                    <TableCell className="font-semibold text-ink">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-full bg-accent-start text-white text-xs font-bold flex items-center justify-center shrink-0">
+                          {userItem.name ? userItem.name.charAt(0).toUpperCase() : 'U'}
+                        </div>
+                        <span className="truncate">{userItem.name}</span>
                       </div>
-                      <span className="truncate">{userItem.name}</span>
-                    </div>
-                  </TableCell>
+                    </TableCell>
 
-                  {/* Email */}
-                  <TableCell className="text-muted text-xs">{userItem.email}</TableCell>
+                    {/* Email */}
+                    <TableCell className="text-muted text-xs">{userItem.email}</TableCell>
 
-                  {/* Role Badge */}
-                  <TableCell>
-                    <Badge variant={userItem.role === 'ROLE_ADMIN' ? 'accent' : 'neutral'}>
-                      {userItem.role === 'ROLE_ADMIN' ? 'Admin' : 'User'}
-                    </Badge>
-                  </TableCell>
+                    {/* Role Badge */}
+                    <TableCell>
+                      <Badge variant={userItem.role === 'ROLE_ADMIN' ? 'accent' : 'neutral'}>
+                        {userItem.role === 'ROLE_ADMIN' ? 'Admin' : 'User'}
+                      </Badge>
+                    </TableCell>
 
-                  {/* Created Date */}
-                  <TableCell className="text-xs text-muted">
-                    {userItem.createdAt ? formatDate(userItem.createdAt) : 'N/A'}
-                  </TableCell>
+                    {/* Created Date */}
+                    <TableCell className="text-xs text-muted">
+                      {userItem.createdAt ? formatDate(userItem.createdAt) : 'N/A'}
+                    </TableCell>
 
-                  {/* Actions (view, edit role, delete) */}
-                  <TableCell className="text-right">
-                    <div
-                      className="flex items-center justify-end gap-1"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <button
-                        onClick={() => setSelectedUser(userItem)}
-                        className="p-1.5 rounded-lg text-muted hover:text-ink hover:bg-surface transition-colors"
-                        title="View user details"
-                        aria-label="View user details"
+                    {/* Actions (view, edit role, delete) */}
+                    <TableCell className="text-right">
+                      <div
+                        className="flex items-center justify-end gap-1"
+                        onClick={(e) => e.stopPropagation()}
                       >
-                        <Eye className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={(e) => handleOpenEditRole(userItem, e)}
-                        className="p-1.5 rounded-lg text-muted hover:text-accent-end hover:bg-surface transition-colors"
-                        title="Edit user role"
-                        aria-label="Edit user role"
-                      >
-                        <Edit3 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDeletingUser(userItem);
-                        }}
-                        className="p-1.5 rounded-lg text-muted hover:text-danger hover:bg-red-50 transition-colors"
-                        title="Delete user"
-                        aria-label="Delete user"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                        <button
+                          onClick={() => setSelectedUser(userItem)}
+                          className="p-1.5 rounded-lg text-muted hover:text-ink hover:bg-surface transition-colors"
+                          title="View user details"
+                          aria-label="View user details"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={(e) => handleOpenEditRole(userItem, e)}
+                          className="p-1.5 rounded-lg text-muted hover:text-accent-end hover:bg-surface transition-colors"
+                          title="Edit user role"
+                          aria-label="Edit user role"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeletingUser(userItem);
+                          }}
+                          className="p-1.5 rounded-lg text-muted hover:text-danger hover:bg-red-50 transition-colors"
+                          title="Delete user"
+                          aria-label="Delete user"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={5} className="py-12 text-center text-muted text-xs">
+                    <div className="flex flex-col items-center justify-center space-y-2">
+                      <UserX className="w-8 h-8 text-faint" />
+                      <p className="font-medium text-ink">No users found</p>
+                      <p className="text-muted">
+                        {searchQuery
+                          ? `No user records matched "${searchQuery}".`
+                          : 'There are currently no registered users in the database.'}
+                      </p>
                     </div>
                   </TableCell>
                 </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={5} className="py-12 text-center text-muted text-xs">
-                  No users found matching "{searchQuery}".
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </Card>
+              )}
+            </TableBody>
+          </Table>
+        </Card>
+      )}
 
       {/* ============================================================ */}
       {/* SIDE DRAWER (Opens when clicking a row)                       */}
       {/* ============================================================ */}
       <AnimatePresence>
-        {selectedUser && (
+        {currentSelectedUser && (
           <div className="fixed inset-0 z-50 flex justify-end">
             {/* Backdrop */}
             <motion.div
@@ -336,11 +347,11 @@ export const AdminPage: React.FC = () => {
                 <div className="p-6 border-b border-border flex items-center justify-between sticky top-0 bg-paper z-10">
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-12 rounded-full bg-accent-start text-white flex items-center justify-center font-bold text-lg shadow-sm">
-                      {selectedUser.name.charAt(0).toUpperCase()}
+                      {currentSelectedUser.name ? currentSelectedUser.name.charAt(0).toUpperCase() : 'U'}
                     </div>
                     <div>
-                      <h3 className="text-base font-bold text-ink">{selectedUser.name}</h3>
-                      <p className="text-xs text-muted">{selectedUser.email}</p>
+                      <h3 className="text-base font-bold text-ink">{currentSelectedUser.name}</h3>
+                      <p className="text-xs text-muted">{currentSelectedUser.email}</p>
                     </div>
                   </div>
 
@@ -362,28 +373,28 @@ export const AdminPage: React.FC = () => {
                       {/* StatCard: Total Spend */}
                       <StatCard
                         label="Total Spend"
-                        value={formatCurrency(selectedUser.totalSpend || 1840.5)}
+                        value={formatCurrency(currentSelectedUser.totalSpend ?? 0)}
                         icon={<DollarSign className="w-3.5 h-3.5 text-accent-start" />}
                       />
 
                       {/* StatCard: Transactions */}
                       <StatCard
                         label="Transactions"
-                        value={selectedUser.transactionsCount || 22}
+                        value={currentSelectedUser.transactionsCount ?? 0}
                         icon={<Receipt className="w-3.5 h-3.5 text-accent-end" />}
                       />
 
                       {/* StatCard: Avg Ticket */}
                       <StatCard
                         label="Avg Ticket"
-                        value={formatCurrency(selectedUser.avgTicket || 83.65)}
+                        value={formatCurrency(currentSelectedUser.avgTicket ?? 0)}
                         icon={<TrendingUp className="w-3.5 h-3.5 text-emerald-600" />}
                       />
 
                       {/* StatCard: Active Categories */}
                       <StatCard
                         label="Categories"
-                        value={selectedUser.activeCategories || 5}
+                        value={currentSelectedUser.activeCategories ?? 0}
                         icon={<Tag className="w-3.5 h-3.5 text-purple-600" />}
                       />
                     </div>
@@ -398,18 +409,24 @@ export const AdminPage: React.FC = () => {
                     <div className="p-3 rounded-lg bg-surface border border-border space-y-2 text-xs">
                       <div className="flex items-center justify-between">
                         <span className="text-muted">User ID</span>
-                        <span className="font-mono font-bold text-ink">#{selectedUser.id}</span>
+                        <span className="font-mono font-bold text-ink">#{currentSelectedUser.id}</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-muted">Access Role</span>
-                        <Badge variant={selectedUser.role === 'ROLE_ADMIN' ? 'accent' : 'neutral'}>
-                          {selectedUser.role}
+                        <Badge variant={currentSelectedUser.role === 'ROLE_ADMIN' ? 'accent' : 'neutral'}>
+                          {currentSelectedUser.role || 'ROLE_USER'}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted">Account Status</span>
+                        <Badge variant={currentSelectedUser.isActive !== false ? 'success' : 'neutral'}>
+                          {currentSelectedUser.isActive !== false ? 'Active' : 'Inactive'}
                         </Badge>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-muted">Registered On</span>
                         <span className="font-medium text-ink">
-                          {selectedUser.createdAt ? formatDate(selectedUser.createdAt) : 'N/A'}
+                          {currentSelectedUser.createdAt ? formatDate(currentSelectedUser.createdAt) : 'N/A'}
                         </span>
                       </div>
                     </div>
@@ -422,7 +439,7 @@ export const AdminPage: React.FC = () => {
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={(e) => handleOpenEditRole(selectedUser, e)}
+                  onClick={(e) => handleOpenEditRole(currentSelectedUser, e)}
                   leftIcon={<Edit3 className="w-4 h-4" />}
                 >
                   Change Role
@@ -430,7 +447,7 @@ export const AdminPage: React.FC = () => {
                 <Button
                   variant="danger"
                   size="sm"
-                  onClick={() => setDeletingUser(selectedUser)}
+                  onClick={() => setDeletingUser(currentSelectedUser)}
                   leftIcon={<Trash2 className="w-4 h-4" />}
                 >
                   Delete User
@@ -446,7 +463,11 @@ export const AdminPage: React.FC = () => {
       {/* ============================================================ */}
       <Modal
         isOpen={editingRoleUser !== null}
-        onClose={() => setEditingRoleUser(null)}
+        onClose={() => {
+          if (!updateRoleMutation.isPending) {
+            setEditingRoleUser(null);
+          }
+        }}
         title="Change User Role"
         description={`Modify system permissions for ${editingRoleUser?.name}.`}
         maxWidth="sm"
@@ -466,6 +487,7 @@ export const AdminPage: React.FC = () => {
             <Button
               type="button"
               variant="ghost"
+              disabled={updateRoleMutation.isPending}
               onClick={() => setEditingRoleUser(null)}
             >
               Cancel
@@ -473,10 +495,17 @@ export const AdminPage: React.FC = () => {
             <Button
               type="button"
               variant="primary"
+              disabled={updateRoleMutation.isPending}
               onClick={handleSaveRole}
-              leftIcon={<Check className="w-4 h-4" />}
+              leftIcon={
+                updateRoleMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Check className="w-4 h-4" />
+                )
+              }
             >
-              Save Role
+              {updateRoleMutation.isPending ? 'Saving...' : 'Save Role'}
             </Button>
           </div>
         </div>
@@ -487,7 +516,11 @@ export const AdminPage: React.FC = () => {
       {/* ============================================================ */}
       <Modal
         isOpen={deletingUser !== null}
-        onClose={() => setDeletingUser(null)}
+        onClose={() => {
+          if (!deleteUserMutation.isPending) {
+            setDeletingUser(null);
+          }
+        }}
         title="Delete User Account"
         description={`Are you sure you want to delete ${deletingUser?.name}?`}
         maxWidth="sm"
@@ -501,6 +534,7 @@ export const AdminPage: React.FC = () => {
             <Button
               type="button"
               variant="ghost"
+              disabled={deleteUserMutation.isPending}
               onClick={() => setDeletingUser(null)}
             >
               Cancel
@@ -508,9 +542,17 @@ export const AdminPage: React.FC = () => {
             <Button
               type="button"
               variant="danger"
+              disabled={deleteUserMutation.isPending}
               onClick={handleDeleteUser}
+              leftIcon={
+                deleteUserMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Trash2 className="w-4 h-4" />
+                )
+              }
             >
-              Delete User
+              {deleteUserMutation.isPending ? 'Deleting...' : 'Delete User'}
             </Button>
           </div>
         </div>

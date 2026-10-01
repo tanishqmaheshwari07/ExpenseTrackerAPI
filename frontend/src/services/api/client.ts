@@ -9,10 +9,11 @@ export const apiClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true, // Send and receive HttpOnly cookies across origins
   timeout: 15000,
 });
 
-// Request Interceptor: Inject Bearer token from Zustand store
+// Request Interceptor: Inject in-memory Bearer access token from Zustand store
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = useAuthStore.getState().accessToken;
@@ -24,7 +25,7 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Variables for managing single refresh token execution & queueing
+// Queue and lock to handle simultaneous 401s with a single refresh request
 let isRefreshing = false;
 let failedQueue: Array<{
   resolve: (token: string) => void;
@@ -42,20 +43,22 @@ const processQueue = (error: unknown, token: string | null = null) => {
   failedQueue = [];
 };
 
-// Response Interceptor: Automatic token refresh on 401
+// Response Interceptor: Automatic token refresh via HttpOnly cookie on 401
 apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
-    // Don't retry auth endpoints to avoid infinite loops
+    // Don't retry auth login/register/refresh endpoints to prevent infinite recursion
     const isAuthEndpoint =
       originalRequest?.url?.includes('/users/login') ||
       originalRequest?.url?.includes('/users/register') ||
-      originalRequest?.url?.includes('/users/refresh-token');
+      originalRequest?.url?.includes('/users/refresh-token') ||
+      originalRequest?.url?.includes('/users/logout');
 
     if (error.response?.status === 401 && originalRequest && !originalRequest._retry && !isAuthEndpoint) {
       if (isRefreshing) {
+        // Enqueue simultaneous 401 requests while one refresh request is active
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
         })
@@ -71,21 +74,15 @@ apiClient.interceptors.response.use(
       originalRequest._retry = true;
       isRefreshing = true;
 
-      const refreshToken = useAuthStore.getState().refreshToken;
-
-      if (!refreshToken) {
-        useAuthStore.getState().logout();
-        if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
-          window.location.href = '/login';
-        }
-        return Promise.reject(error);
-      }
-
       try {
-        // Call refresh token endpoint (POST /api/users/refresh-token)
+        // Trigger token rotation using HttpOnly cookie (cookie sent automatically via withCredentials)
         const response = await axios.post<ApiResponse<AuthResponse>>(
           `${BASE_URL}/users/refresh-token`,
-          { refreshToken }
+          {},
+          {
+            withCredentials: true,
+            headers: { 'Content-Type': 'application/json' },
+          }
         );
 
         const newAuthData = response.data?.data;
@@ -93,8 +90,8 @@ apiClient.interceptors.response.use(
 
         if (newAccessToken) {
           useAuthStore.getState().setAccessToken(newAccessToken);
-          if (newAuthData.refreshToken) {
-            useAuthStore.getState().login(newAuthData);
+          if (newAuthData.user) {
+            useAuthStore.getState().setUser(newAuthData.user);
           }
 
           processQueue(null, newAccessToken);
@@ -104,12 +101,16 @@ apiClient.interceptors.response.use(
           }
           return apiClient(originalRequest);
         } else {
-          throw new Error('No access token received from refresh-token endpoint');
+          throw new Error('No access token received from refresh endpoint');
         }
       } catch (refreshError) {
         processQueue(refreshError, null);
         useAuthStore.getState().logout();
-        if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+        if (
+          typeof window !== 'undefined' &&
+          window.location.pathname !== '/login' &&
+          window.location.pathname !== '/'
+        ) {
           window.location.href = '/login';
         }
         return Promise.reject(refreshError);

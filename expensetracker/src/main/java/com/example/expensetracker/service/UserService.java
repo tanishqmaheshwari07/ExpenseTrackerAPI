@@ -22,9 +22,14 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import com.example.expensetracker.dto.AdminUserResponse;
+import com.example.expensetracker.entity.Expense;
+import com.example.expensetracker.repository.ExpenseRepository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -35,6 +40,7 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final ExpenseRepository expenseRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final JwtProperties jwtProperties;
@@ -84,7 +90,14 @@ public class UserService {
     }
 
     public AuthResponse refreshToken(RefreshTokenRequest request) {
-        RefreshToken token = refreshTokenRepository.findByToken(request.getRefreshToken())
+        if (request == null || request.getRefreshToken() == null || request.getRefreshToken().isBlank()) {
+            throw new UnauthorizedAccessException("Refresh token is required");
+        }
+        return refreshTokenByTokenString(request.getRefreshToken());
+    }
+
+    public AuthResponse refreshTokenByTokenString(String tokenString) {
+        RefreshToken token = refreshTokenRepository.findByToken(tokenString)
                 .orElseThrow(() -> new UnauthorizedAccessException("Invalid or revoked refresh token"));
 
         if (token.isRevoked() || token.isExpired()) {
@@ -109,6 +122,15 @@ public class UserService {
                 .expiresInMs(jwtProperties.getAccessTokenExpirationMs())
                 .user(UserMapper.toResponse(user))
                 .build();
+    }
+
+    public void logoutByRefreshToken(String tokenString) {
+        if (tokenString != null && !tokenString.isBlank()) {
+            refreshTokenRepository.findByToken(tokenString).ifPresent(token -> {
+                refreshTokenRepository.delete(token);
+                log.info("Revoked refresh token for user '{}'", token.getUser().getEmail());
+            });
+        }
     }
 
     private RefreshToken createRefreshToken(User user) {
@@ -179,6 +201,49 @@ public class UserService {
         refreshTokenRepository.deleteByUser(user);
         userRepository.delete(user);
         log.info("Deleted user with ID: {}", id);
+    }
+
+    @Transactional(readOnly = true)
+    public List<AdminUserResponse> getAllUsers() {
+        List<User> users = userRepository.findAll();
+        return users.stream().map(user -> {
+            List<Expense> userExpenses = expenseRepository.findByUserId(user.getId());
+            BigDecimal totalSpend = userExpenses.stream()
+                    .map(Expense::getAmount)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            int count = userExpenses.size();
+            BigDecimal avgTicket = count > 0
+                    ? totalSpend.divide(BigDecimal.valueOf(count), 2, java.math.RoundingMode.HALF_UP)
+                    : BigDecimal.ZERO;
+            int activeCategories = (int) userExpenses.stream()
+                    .map(Expense::getCategory)
+                    .distinct()
+                    .count();
+
+            return AdminUserResponse.builder()
+                    .id(user.getId())
+                    .name(user.getName())
+                    .email(user.getEmail())
+                    .role(user.getRole())
+                    .isActive(user.isActive())
+                    .createdAt(user.getCreatedAt())
+                    .updatedAt(user.getUpdatedAt())
+                    .totalSpend(totalSpend)
+                    .transactionsCount(count)
+                    .avgTicket(avgTicket)
+                    .activeCategories(activeCategories)
+                    .build();
+        }).toList();
+    }
+
+    public UserResponse updateUserRole(Long id, Role newRole) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new UserNotFoundException("User with id " + id + " not found"));
+
+        user.setRole(newRole);
+        User savedUser = userRepository.save(user);
+        log.info("Updated role for user ID {} to {}", id, newRole);
+        return UserMapper.toResponse(savedUser);
     }
 
     @Transactional(readOnly = true)

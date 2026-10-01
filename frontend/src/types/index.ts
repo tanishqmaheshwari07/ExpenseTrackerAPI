@@ -32,6 +32,18 @@ export interface RefreshTokenRequest {
   refreshToken: string;
 }
 
+export interface RoleUpdateRequest {
+  role: Role;
+}
+
+export interface AdminUser extends User {
+  isActive?: boolean;
+  totalSpend?: number;
+  transactionsCount?: number;
+  avgTicket?: number;
+  activeCategories?: number;
+}
+
 export interface AuthResponse {
   // TODO: confirm against backend DTO
   accessToken: string;

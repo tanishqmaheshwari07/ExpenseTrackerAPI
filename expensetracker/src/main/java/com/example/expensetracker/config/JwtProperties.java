@@ -25,4 +25,14 @@ public class JwtProperties {
      * Refresh token validity in milliseconds (default: 7 days).
      */
     private long refreshTokenExpirationMs = 7 * 24 * 60 * 60 * 1000L;
+
+    /**
+     * Whether refresh token cookie requires HTTPS (Secure flag). Default false for local dev.
+     */
+    private boolean cookieSecure = false;
+
+    /**
+     * SameSite attribute for the refresh token cookie (Lax, Strict, None). Default: Lax.
+     */
+    private String cookieSameSite = "Lax";
 }

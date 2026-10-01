@@ -10,6 +10,7 @@ import {
   LogOut,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
+import { authApi } from '../../services/api/authApi';
 import { cn } from '../../utils/cn';
 
 interface SidebarProps {
@@ -20,6 +21,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
   const { user, logout } = useAuthStore();
 
   const isAdmin = user?.role === 'ROLE_ADMIN' || user?.role === ('ADMIN' as unknown);
+
+  const handleLogout = async () => {
+    try {
+      await authApi.logout();
+    } catch {
+      // Ignore network errors on logout
+    }
+    logout();
+  };
 
   const navItems = [
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
@@ -97,7 +107,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
               </div>
             </div>
             <button
-              onClick={logout}
+              onClick={handleLogout}
               title="Logout"
               className="p-1.5 rounded-lg text-muted hover:text-danger hover:bg-white transition-colors shrink-0"
               aria-label="Log out"

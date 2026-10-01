@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Plus, User, LogOut, ShieldAlert } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { useAuthStore } from '../../store/authStore';
+import { authApi } from '../../services/api/authApi';
 
 interface TopBarProps {
   onAddExpense?: () => void;
@@ -33,7 +34,12 @@ export const TopBar: React.FC<TopBarProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await authApi.logout();
+    } catch {
+      // Ignore network errors on logout
+    }
     logout();
     navigate('/');
   };
