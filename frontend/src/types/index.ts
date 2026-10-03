@@ -83,6 +83,8 @@ export interface Expense {
   description: string;
   category: Category;
   date: string;
+  isDeleted?: boolean;
+  is_deleted?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }

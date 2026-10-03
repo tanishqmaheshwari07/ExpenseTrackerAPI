@@ -1,11 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ArrowUpRight,
-  ArrowDownRight,
   DollarSign,
   PieChart as PieChartIcon,
   ChevronRight,
+  Activity,
 } from 'lucide-react';
 import {
   Card,
@@ -28,14 +27,20 @@ import { useExpenseSummary, useMyExpenses } from '../hooks/useExpenses';
 
 type DatePreset = 'this_month' | 'last_month' | 'last_3_months' | 'custom';
 
+const formatToYMD = (d: Date): string => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
 export const AnalyticsPage: React.FC = () => {
   const navigate = useNavigate();
   const [preset, setPreset] = useState<DatePreset>('this_month');
 
-  const now = new Date();
-
   // Compute preset date ranges
   const dateRange = useMemo(() => {
+    const now = new Date();
     const y = now.getFullYear();
     const m = now.getMonth();
 
@@ -43,28 +48,28 @@ export const AnalyticsPage: React.FC = () => {
       const start = new Date(y, m, 1);
       const end = new Date(y, m + 1, 0);
       return {
-        startDate: start.toISOString().split('T')[0],
-        endDate: end.toISOString().split('T')[0],
+        startDate: formatToYMD(start),
+        endDate: formatToYMD(end),
       };
     }
     if (preset === 'last_month') {
       const start = new Date(y, m - 1, 1);
       const end = new Date(y, m, 0);
       return {
-        startDate: start.toISOString().split('T')[0],
-        endDate: end.toISOString().split('T')[0],
+        startDate: formatToYMD(start),
+        endDate: formatToYMD(end),
       };
     }
     if (preset === 'last_3_months') {
       const start = new Date(y, m - 2, 1);
       const end = new Date(y, m + 1, 0);
       return {
-        startDate: start.toISOString().split('T')[0],
-        endDate: end.toISOString().split('T')[0],
+        startDate: formatToYMD(start),
+        endDate: formatToYMD(end),
       };
     }
     return { startDate: '', endDate: '' };
-  }, [preset, now]);
+  }, [preset]);
 
   const [customStart, setCustomStart] = useState<string>('');
   const [customEnd, setCustomEnd] = useState<string>('');
@@ -82,53 +87,66 @@ export const AnalyticsPage: React.FC = () => {
 
   const isLoading = isSummaryLoading || isExpensesLoading;
 
-  // Total current period amount
-  const totalAmount = summary?.totalAmount ? Number(summary.totalAmount) : 0;
+  // Filter raw expenses by active date range and exclude soft-deleted items
+  const filteredExpenses = useMemo(() => {
+    if (!myExpenses || myExpenses.length === 0) return [];
 
-  // Comparison period estimate: e.g. -8.4% or +12.3%
-  const comparisonPercent = -8.4;
-  const isDownGood = comparisonPercent <= 0; // Down in spending is positive (good)
+    return myExpenses.filter((exp) => {
+      // Exclude soft-deleted records
+      if (exp.isDeleted === true || (exp as unknown as { is_deleted?: boolean }).is_deleted === true) {
+        return false;
+      }
+      if (!exp.date) return false;
+      if (activeStartDate && exp.date < activeStartDate) return false;
+      if (activeEndDate && exp.date > activeEndDate) return false;
+      return true;
+    });
+  }, [myExpenses, activeStartDate, activeEndDate]);
 
-  // Daily/Weekly spend trend data for the large Area/Line chart
+  // Total current period amount strictly from real API summary or filtered expenses
+  const totalAmount = useMemo(() => {
+    if (summary?.totalAmount !== undefined && summary?.totalAmount !== null) {
+      return Number(summary.totalAmount);
+    }
+    return filteredExpenses.reduce((sum, exp) => sum + Number(exp.amount ?? 0), 0);
+  }, [summary, filteredExpenses]);
+
+  // Total transaction count strictly from real API summary or filtered expenses
+  const transactionCount = useMemo(() => {
+    if (summary?.totalCount !== undefined && summary?.totalCount !== null) {
+      return Number(summary.totalCount);
+    }
+    return filteredExpenses.length;
+  }, [summary, filteredExpenses]);
+
+  // Daily spend trend data generated strictly from real expense records
   const trendData = useMemo(() => {
+    if (!filteredExpenses || filteredExpenses.length === 0) {
+      return [];
+    }
+
     const dataMap: Record<string, number> = {};
+    filteredExpenses.forEach((exp) => {
+      if (exp.date) {
+        dataMap[exp.date] = (dataMap[exp.date] ?? 0) + Number(exp.amount ?? 0);
+      }
+    });
 
-    // Generate date sequence or buckets from active date range
-    if (myExpenses && myExpenses.length > 0) {
-      myExpenses.forEach((exp) => {
-        if (exp.date) {
-          dataMap[exp.date] = (dataMap[exp.date] || 0) + Number(exp.amount);
-        }
-      });
+    const entries = Object.entries(dataMap);
+    if (entries.length === 0) {
+      return [];
     }
 
-    if (Object.keys(dataMap).length === 0) {
-      // Fallback smoothed mock trend across 10-14 points if no raw transactions exist yet
-      return [
-        { label: 'Day 1', amount: 45 },
-        { label: 'Day 4', amount: 120 },
-        { label: 'Day 7', amount: 80 },
-        { label: 'Day 10', amount: 210 },
-        { label: 'Day 13', amount: 65 },
-        { label: 'Day 16', amount: 150 },
-        { label: 'Day 19', amount: 95 },
-        { label: 'Day 22', amount: 180 },
-        { label: 'Day 25', amount: 110 },
-        { label: 'Day 28', amount: 240 },
-        { label: 'Day 30', amount: 85 },
-      ];
-    }
-
-    return Object.entries(dataMap)
+    return entries
       .sort(([a], [b]) => new Date(a).getTime() - new Date(b).getTime())
       .map(([date, amount]) => {
-        const d = new Date(date);
+        const d = new Date(date + 'T00:00:00');
         return {
           label: `${d.toLocaleString('default', { month: 'short' })} ${d.getDate()}`,
           amount,
         };
       });
-  }, [myExpenses]);
+  }, [filteredExpenses]);
 
   // Category breakdown as horizontal bar list
   const categoryBars = useMemo(() => {
@@ -136,25 +154,22 @@ export const AnalyticsPage: React.FC = () => {
 
     if (summary?.categoryBreakdown && Object.keys(summary.categoryBreakdown).length > 0) {
       Object.entries(summary.categoryBreakdown).forEach(([k, v]) => {
-        totals[k] = Number(v);
+        const val = Number(v);
+        if (val > 0) {
+          totals[k] = val;
+        }
       });
-    } else if (myExpenses && myExpenses.length > 0) {
-      myExpenses.forEach((e) => {
+    } else if (filteredExpenses && filteredExpenses.length > 0) {
+      filteredExpenses.forEach((e) => {
         const cat = e.category || 'OTHER';
-        totals[cat] = (totals[cat] || 0) + Number(e.amount);
+        totals[cat] = (totals[cat] ?? 0) + Number(e.amount ?? 0);
       });
-    } else {
-      // Default placeholder set for initial visual representation
-      totals['TRAVEL'] = 380;
-      totals['FOOD'] = 142.5;
-      totals['HEALTH'] = 120;
-      totals['BILLS'] = 115.2;
-      totals['SHOPPING'] = 99;
-      totals['EDUCATION'] = 49;
-      totals['ENTERTAINMENT'] = 36;
     }
 
     const totalSum = Object.values(totals).reduce((a, b) => a + b, 0);
+    if (totalSum === 0 || Object.keys(totals).length === 0) {
+      return [];
+    }
 
     const sorted = Object.entries(totals)
       .map(([key, value]) => ({
@@ -165,7 +180,6 @@ export const AnalyticsPage: React.FC = () => {
       }))
       .sort((a, b) => b.amount - a.amount);
 
-    // Top 3 categories get distinct light navy tints: #1E3A8A, #2563EB, #3B82F6, others grayscale
     const topTints = ['#1E3A8A', '#2563EB', '#3B82F6'];
     const grayTints = ['#9CA3AF', '#D1D5DB', '#E5E7EB', '#6B7280'];
 
@@ -174,7 +188,7 @@ export const AnalyticsPage: React.FC = () => {
       color: idx < 3 ? topTints[idx] : grayTints[(idx - 3) % grayTints.length],
       isTop3: idx < 3,
     }));
-  }, [summary, myExpenses]);
+  }, [summary, filteredExpenses]);
 
   // Handle clicking a category bar -> navigates to /expenses?category={name}
   const handleCategoryClick = (categoryKey: string) => {
@@ -244,32 +258,16 @@ export const AnalyticsPage: React.FC = () => {
             This Period vs Last Period
           </span>
           <div className="flex items-center gap-3 mt-3">
-            <div
-              className={`text-3xl font-extrabold flex items-center gap-1 ${
-                isDownGood ? 'text-success' : 'text-danger'
-              }`}
-            >
-              {isDownGood ? (
-                <ArrowDownRight className="w-8 h-8 shrink-0 text-success" />
-              ) : (
-                <ArrowUpRight className="w-8 h-8 shrink-0 text-danger" />
-              )}
-              <span>{Math.abs(comparisonPercent)}%</span>
+            <div className="text-2xl sm:text-3xl font-extrabold flex items-center gap-1.5 text-muted">
+              <Activity className="w-7 h-7 shrink-0 text-faint" />
+              <span>N/A</span>
             </div>
-            <span
-              className={`text-xs font-semibold px-2.5 py-1 rounded-pill ${
-                isDownGood
-                  ? 'bg-success/10 text-success'
-                  : 'bg-danger/10 text-danger'
-              }`}
-            >
-              {isDownGood ? 'Decreased spend' : 'Increased spend'}
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-pill bg-surface border border-border text-muted">
+              No comparison data
             </span>
           </div>
           <p className="text-xs text-muted mt-2">
-            {isDownGood
-              ? 'Great job! You spent 8.4% less compared to the previous timeframe.'
-              : 'Outflow has increased relative to the previous benchmark.'}
+            Historical period benchmarking is not available for this range.
           </p>
         </Card>
 
@@ -284,10 +282,10 @@ export const AnalyticsPage: React.FC = () => {
             </div>
           </div>
           <div className="text-3xl font-bold text-ink tracking-tight mt-3">
-            {formatCurrency(totalAmount || 1031.69)}
+            {formatCurrency(totalAmount ?? 0)}
           </div>
           <p className="text-xs text-muted mt-2">
-            Aggregated across {summary?.totalCount || myExpenses?.length || 8} recorded transaction(s)
+            Aggregated across {transactionCount ?? 0} recorded transaction(s)
           </p>
         </Card>
 
@@ -302,12 +300,12 @@ export const AnalyticsPage: React.FC = () => {
             </div>
           </div>
           <div className="text-3xl font-bold text-ink tracking-tight mt-3">
-            {categoryBars.length} Categories
+            {categoryBars.length} {categoryBars.length === 1 ? 'Category' : 'Categories'}
           </div>
           <p className="text-xs text-muted mt-2">
             Top area:{' '}
             <span className="font-semibold text-ink">
-              {categoryBars[0]?.name || 'Travel & Transport'}
+              {categoryBars[0]?.name || 'No categories yet'}
             </span>
           </p>
         </Card>
@@ -331,6 +329,14 @@ export const AnalyticsPage: React.FC = () => {
         <div className="h-80 w-full mt-4">
           {isLoading ? (
             <Skeleton className="h-full w-full rounded-xl" />
+          ) : trendData.length === 0 ? (
+            <div className="h-full w-full flex flex-col items-center justify-center text-center p-6 bg-surface/50 rounded-xl border border-dashed border-border">
+              <div className="w-10 h-10 rounded-full bg-surface border border-border text-muted flex items-center justify-center mb-3">
+                <Activity className="w-5 h-5 text-accent-end" />
+              </div>
+              <p className="text-sm font-semibold text-ink">No spending data available</p>
+              <p className="text-xs text-muted mt-1">Add an expense to see your spending timeline.</p>
+            </div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -390,53 +396,62 @@ export const AnalyticsPage: React.FC = () => {
                 Click any category bar to inspect filtered transactions
               </CardDescription>
             </div>
-            <span className="text-xs text-faint">Click row to filter</span>
+            {categoryBars.length > 0 && (
+              <span className="text-xs text-faint">Click row to filter</span>
+            )}
           </div>
         </CardHeader>
 
-        <div className="space-y-4">
-          {categoryBars.map((cat, idx) => (
-            <div
-              key={cat.key || idx}
-              onClick={() => handleCategoryClick(cat.key)}
-              className="p-3 rounded-xl hover:bg-surface/80 border border-transparent hover:border-border transition-all cursor-pointer group"
-            >
-              <div className="flex items-center justify-between text-sm mb-1.5">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold text-ink group-hover:text-accent-end transition-colors">
-                    {cat.name}
-                  </span>
-                  {cat.isTop3 && (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-pill bg-accent-start/10 text-accent-start">
-                      Rank #{idx + 1}
+        {categoryBars.length === 0 ? (
+          <div className="py-12 text-center bg-surface/50 rounded-xl border border-dashed border-border">
+            <p className="text-sm font-semibold text-ink">No expenses recorded for this period.</p>
+            <p className="text-xs text-muted mt-1">Add an expense to see category breakdown.</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {categoryBars.map((cat, idx) => (
+              <div
+                key={cat.key || idx}
+                onClick={() => handleCategoryClick(cat.key)}
+                className="p-3 rounded-xl hover:bg-surface/80 border border-transparent hover:border-border transition-all cursor-pointer group"
+              >
+                <div className="flex items-center justify-between text-sm mb-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-ink group-hover:text-accent-end transition-colors">
+                      {cat.name}
                     </span>
-                  )}
+                    {cat.isTop3 && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-pill bg-accent-start/10 text-accent-start">
+                        Rank #{idx + 1}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-muted font-medium">
+                      {cat.percent.toFixed(1)}%
+                    </span>
+                    <span className="font-bold text-ink text-sm">
+                      {formatCurrency(cat.amount)}
+                    </span>
+                    <ChevronRight className="w-4 h-4 text-faint group-hover:text-ink group-hover:translate-x-0.5 transition-all" />
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-muted font-medium">
-                    {cat.percent.toFixed(1)}%
-                  </span>
-                  <span className="font-bold text-ink text-sm">
-                    {formatCurrency(cat.amount)}
-                  </span>
-                  <ChevronRight className="w-4 h-4 text-faint group-hover:text-ink group-hover:translate-x-0.5 transition-all" />
+                {/* Progress Horizontal Bar in Grayscale / Light Navy Tints */}
+                <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{
+                      width: `${Math.max(4, cat.percent)}%`,
+                      backgroundColor: cat.color,
+                    }}
+                  />
                 </div>
               </div>
-
-              {/* Progress Horizontal Bar in Grayscale / Light Navy Tints */}
-              <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all duration-500"
-                  style={{
-                    width: `${Math.max(4, cat.percent)}%`,
-                    backgroundColor: cat.color,
-                  }}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </Card>
     </div>
   );
