@@ -62,9 +62,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<ApiResponse<Void>> handleBadCredentials(BadCredentialsException ex) {
         log.warn("Bad credentials attempt: {}", ex.getMessage());
+        String msg = (ex.getMessage() != null && !ex.getMessage().isBlank())
+                ? ex.getMessage()
+                : "Invalid email or password";
         return ResponseEntity
                 .status(HttpStatus.UNAUTHORIZED)
-                .body(ApiResponse.error("Invalid email or password"));
+                .body(ApiResponse.error(msg));
     }
 
     @ExceptionHandler(UserAlreadyExistsException.class)
@@ -82,9 +85,10 @@ public class GlobalExceptionHandler {
             fieldErrors.put(error.getField(), error.getDefaultMessage());
         }
         log.warn("Validation failure: {}", fieldErrors);
+        String firstErrorMessage = fieldErrors.values().stream().findFirst().orElse("Validation failed");
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponse.error("Validation failed", fieldErrors));
+                .body(ApiResponse.error(firstErrorMessage, fieldErrors));
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)

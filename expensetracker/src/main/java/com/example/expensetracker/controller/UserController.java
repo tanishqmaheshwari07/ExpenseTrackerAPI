@@ -4,6 +4,9 @@ import com.example.expensetracker.dto.AdminUserResponse;
 import com.example.expensetracker.dto.ApiResponse;
 import com.example.expensetracker.dto.AuthResponse;
 import com.example.expensetracker.dto.LoginRequest;
+import com.example.expensetracker.dto.OAuth2ExchangeRequest;
+import com.example.expensetracker.dto.PasswordUpdateRequest;
+import com.example.expensetracker.dto.ProfileUpdateRequest;
 import com.example.expensetracker.dto.RefreshTokenRequest;
 import com.example.expensetracker.dto.RoleUpdateRequest;
 import com.example.expensetracker.dto.UserRequest;
@@ -76,6 +79,31 @@ public class UserController {
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, cookie.toString())
                 .body(ApiResponse.ok(sanitizedResponse, "Login successful"));
+    }
+
+    @Operation(summary = "Exchange OAuth2 code", description = "Consumes a one-time OAuth2 exchange code, issues JWT access token, and sets refresh token cookie")
+    @PostMapping("/oauth2/exchange")
+    public ResponseEntity<ApiResponse<AuthResponse>> exchangeOAuth2Code(
+            @Valid @RequestBody OAuth2ExchangeRequest exchangeRequest) {
+        AuthResponse response = userService.exchangeOAuth2Code(exchangeRequest);
+        String rawRefreshToken = response.getRefreshToken();
+
+        ResponseCookie cookie = createRefreshTokenCookie(
+                rawRefreshToken,
+                jwtProperties.getRefreshTokenExpirationMs() / 1000
+        );
+
+        // Sanitize response to never expose refresh token to JavaScript
+        AuthResponse sanitizedResponse = AuthResponse.builder()
+                .accessToken(response.getAccessToken())
+                .tokenType(response.getTokenType())
+                .expiresInMs(response.getExpiresInMs())
+                .user(response.getUser())
+                .build();
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                .body(ApiResponse.ok(sanitizedResponse, "OAuth2 authentication successful"));
     }
 
     @Operation(summary = "Refresh access token", description = "Generates a new access token and rotates the refresh token using HttpOnly cookie")
@@ -162,13 +190,22 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.ok(response, "User retrieved successfully"));
     }
 
-    @Operation(summary = "Update user", description = "Updates user name, email, or password", security = @SecurityRequirement(name = "BearerAuth"))
+    @Operation(summary = "Update user profile", description = "Updates user name and email", security = @SecurityRequirement(name = "BearerAuth"))
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<UserResponse>> updateUser(
             @PathVariable Long id,
-            @Valid @RequestBody UserRequest userRequest) {
-        UserResponse response = userService.updateUser(id, userRequest);
-        return ResponseEntity.ok(ApiResponse.ok(response, "User updated successfully"));
+            @Valid @RequestBody ProfileUpdateRequest request) {
+        UserResponse response = userService.updateUser(id, request);
+        return ResponseEntity.ok(ApiResponse.ok(response, "Profile updated successfully"));
+    }
+
+    @Operation(summary = "Change user password", description = "Updates user password after verifying current password", security = @SecurityRequirement(name = "BearerAuth"))
+    @PutMapping("/{id}/password")
+    public ResponseEntity<ApiResponse<Void>> changePassword(
+            @PathVariable Long id,
+            @Valid @RequestBody PasswordUpdateRequest request) {
+        userService.changePassword(id, request);
+        return ResponseEntity.ok(ApiResponse.ok(null, "Password updated successfully"));
     }
 
     @Operation(summary = "Update user role (Admin only)", description = "Updates a user's role in the system", security = @SecurityRequirement(name = "BearerAuth"))

@@ -14,7 +14,8 @@ import java.util.List;
 @Table(
         name = "users",
         indexes = {
-                @Index(name = "idx_users_email", columnList = "email", unique = true)
+                @Index(name = "idx_users_email", columnList = "email", unique = true),
+                @Index(name = "idx_users_auth_provider_provider_id", columnList = "auth_provider, provider_id")
         }
 )
 @Getter
@@ -34,13 +35,21 @@ public class User extends BaseAuditableEntity {
     @Column(nullable = false, unique = true, length = 150)
     private String email;
 
-    @Column(nullable = false)
+    @Column(nullable = true)
     private String password;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     @Builder.Default
     private Role role = Role.ROLE_USER;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "auth_provider", nullable = false, length = 20)
+    @Builder.Default
+    private AuthProvider authProvider = AuthProvider.LOCAL;
+
+    @Column(name = "provider_id", length = 100)
+    private String providerId;
 
     @Column(name = "is_active", nullable = false)
     @Builder.Default

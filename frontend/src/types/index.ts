@@ -15,10 +15,19 @@ export interface User {
 }
 
 export interface UserRequest {
-  // TODO: confirm against backend DTO
-  name?: string;
-  email?: string;
-  password?: string;
+  name: string;
+  email: string;
+  password: string;
+}
+
+export interface ProfileUpdateRequest {
+  name: string;
+  email: string;
+}
+
+export interface PasswordUpdateRequest {
+  currentPassword: string;
+  newPassword: string;
 }
 
 export interface LoginRequest {

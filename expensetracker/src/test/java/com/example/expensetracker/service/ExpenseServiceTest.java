@@ -136,4 +136,24 @@ class ExpenseServiceTest {
         assertThat(summary.getCategoryBreakdown().get(Category.FOOD)).isEqualTo(new BigDecimal("45.50"));
         assertThat(summary.getCategoryBreakdown().get(Category.TRAVEL)).isEqualTo(new BigDecimal("15.00"));
     }
+
+    @Test
+    @DisplayName("15. User A cannot access User B's expenses (ExpenseNotFoundException when not owner)")
+    void getExpenseById_UserACannotAccessUserBExpense() {
+        User userB = User.builder()
+                .id(2L)
+                .name("Bob")
+                .email("bob@example.com")
+                .role(Role.ROLE_USER)
+                .build();
+
+        // Currently logged in as testUser (User A, ID 1L)
+        when(userService.getCurrentUser()).thenReturn(testUser);
+        // Repository filters by expense ID 200L and user ID 1L -> returns empty because expense 200L belongs to User B
+        when(expenseRepository.findByIdAndUserId(200L, 1L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> expenseService.getExpenseById(200L))
+                .isInstanceOf(ExpenseNotFoundException.class)
+                .hasMessageContaining("not found or does not belong to you");
+    }
 }

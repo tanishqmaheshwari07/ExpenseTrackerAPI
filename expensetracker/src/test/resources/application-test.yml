@@ -19,7 +19,24 @@ spring:
   flyway:
     enabled: false
 
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: test-google-client-id
+            client-secret: test-google-client-secret
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+            scope:
+              - openid
+              - profile
+              - email
+
 application:
+  oauth2:
+    authorized-redirect-uri: http://localhost:3000/oauth2/callback
+    failure-redirect-uri: http://localhost:3000/login?error=oauth_failed
+    exchange-code-expiration-seconds: 300
   security:
     jwt:
       secret-key: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970

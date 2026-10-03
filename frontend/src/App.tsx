@@ -11,6 +11,7 @@ import { ProfilePage } from './pages/ProfilePage';
 import { AdminPage } from './pages/AdminPage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
+import { OAuth2CallbackPage } from './pages/OAuth2CallbackPage';
 import {
   UnauthorizedPage,
   ForbiddenPage,
@@ -53,6 +54,7 @@ const AppContent: React.FC = () => {
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/oauth2/callback" element={<OAuth2CallbackPage />} />
 
         {/* Status / Error Pages */}
         <Route path="/401" element={<UnauthorizedPage />} />

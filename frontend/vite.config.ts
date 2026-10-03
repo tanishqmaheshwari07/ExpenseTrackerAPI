@@ -16,7 +16,15 @@ export default defineConfig({
     allowedHosts: true,
     proxy: {
       '/api': {
-        target: 'http://api:8080',
+        target: process.env.BACKEND_URL || 'http://localhost:8080',
+        changeOrigin: true,
+      },
+      '/oauth2': {
+        target: process.env.BACKEND_URL || 'http://localhost:8080',
+        changeOrigin: true,
+      },
+      '/login/oauth2': {
+        target: process.env.BACKEND_URL || 'http://localhost:8080',
         changeOrigin: true,
       },
     },

@@ -49,10 +49,11 @@ apiClient.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
-    // Don't retry auth login/register/refresh endpoints to prevent infinite recursion
+    // Don't retry auth login/register/refresh/oauth2 endpoints to prevent infinite recursion
     const isAuthEndpoint =
       originalRequest?.url?.includes('/users/login') ||
       originalRequest?.url?.includes('/users/register') ||
+      originalRequest?.url?.includes('/users/oauth2/exchange') ||
       originalRequest?.url?.includes('/users/refresh-token') ||
       originalRequest?.url?.includes('/users/logout');
 

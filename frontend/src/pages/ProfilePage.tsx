@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   User,
   Mail,
@@ -54,6 +54,7 @@ type PasswordFormData = z.infer<typeof passwordSchema>;
 
 export const ProfilePage: React.FC = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { user: storedUser, setUser, logout } = useAuthStore();
   const { showToast } = useToast();
 
@@ -119,16 +120,31 @@ export const ProfilePage: React.FC = () => {
   const updateProfileMutation = useMutation({
     mutationFn: async (formData: ProfileFormData) => {
       if (!currentUser?.id) throw new Error('User ID not found');
-      const response = await authApi.updateUser(currentUser.id, {
+      const response = await authApi.updateProfile(currentUser.id, {
         name: formData.name,
         email: formData.email,
       });
       return response.data;
     },
-    onSuccess: (updated) => {
+    onSuccess: async (updated) => {
       if (updated) {
         setUser(updated);
+        // If email changed, refresh tokens so JWT subject matches new email
+        if (currentUser?.email && updated.email.toLowerCase() !== currentUser.email.toLowerCase()) {
+          try {
+            const refreshRes = await authApi.refreshToken();
+            if (refreshRes.data?.accessToken) {
+              useAuthStore.getState().setAccessToken(refreshRes.data.accessToken);
+              if (refreshRes.data.user) {
+                setUser(refreshRes.data.user);
+              }
+            }
+          } catch (refreshErr) {
+            console.warn('Could not refresh token after email update', refreshErr);
+          }
+        }
       }
+      queryClient.invalidateQueries({ queryKey: ['user-me'] });
       showToast('success', 'Profile updated', 'Your account details have been saved.');
       setIsEditingInfo(false);
     },
@@ -139,14 +155,14 @@ export const ProfilePage: React.FC = () => {
     },
   });
 
-  // Update Password Mutation (PUT /api/users/{id})
+  // Update Password Mutation (PUT /api/users/{id}/password)
   const updatePasswordMutation = useMutation({
     mutationFn: async (formData: PasswordFormData) => {
       if (!currentUser?.id) throw new Error('User ID not found');
-      const response = await authApi.updateUser(currentUser.id, {
-        password: formData.newPassword,
+      await authApi.updatePassword(currentUser.id, {
+        currentPassword: formData.currentPassword,
+        newPassword: formData.newPassword,
       });
-      return response.data;
     },
     onSuccess: () => {
       showToast('success', 'Password updated', 'Your password has been changed successfully.');
@@ -155,6 +171,9 @@ export const ProfilePage: React.FC = () => {
     onError: (error: unknown) => {
       const msg = getErrorMessage(error, 'Could not update password. Please try again.');
       applyServerFieldErrors(error, setPasswordError);
+      if (msg.toLowerCase().includes('current password')) {
+        setPasswordError('currentPassword', { type: 'server', message: msg });
+      }
       showToast('error', 'Password update failed', msg);
     },
   });

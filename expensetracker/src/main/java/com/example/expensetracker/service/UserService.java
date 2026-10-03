@@ -3,6 +3,9 @@ package com.example.expensetracker.service;
 import com.example.expensetracker.config.JwtProperties;
 import com.example.expensetracker.dto.AuthResponse;
 import com.example.expensetracker.dto.LoginRequest;
+import com.example.expensetracker.dto.OAuth2ExchangeRequest;
+import com.example.expensetracker.dto.PasswordUpdateRequest;
+import com.example.expensetracker.dto.ProfileUpdateRequest;
 import com.example.expensetracker.dto.RefreshTokenRequest;
 import com.example.expensetracker.dto.UserRequest;
 import com.example.expensetracker.dto.UserResponse;
@@ -15,6 +18,7 @@ import com.example.expensetracker.exception.UserNotFoundException;
 import com.example.expensetracker.mapper.UserMapper;
 import com.example.expensetracker.repository.RefreshTokenRepository;
 import com.example.expensetracker.repository.UserRepository;
+import com.example.expensetracker.security.oauth2.OAuth2ExchangeCodeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -44,6 +48,7 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final JwtProperties jwtProperties;
+    private final OAuth2ExchangeCodeService exchangeCodeService;
 
     public UserResponse createUser(UserRequest userRequest) {
         if (userRepository.findByEmail(userRequest.getEmail()).isPresent()) {
@@ -79,6 +84,35 @@ public class UserService {
         RefreshToken refreshToken = createRefreshToken(user);
 
         log.info("User '{}' logged in successfully", user.getEmail());
+
+        return AuthResponse.builder()
+                .accessToken(accessToken)
+                .refreshToken(refreshToken.getToken())
+                .tokenType("Bearer")
+                .expiresInMs(jwtProperties.getAccessTokenExpirationMs())
+                .user(UserMapper.toResponse(user))
+                .build();
+    }
+
+    public AuthResponse exchangeOAuth2Code(OAuth2ExchangeRequest request) {
+        if (request == null || request.getCode() == null || request.getCode().isBlank()) {
+            throw new UnauthorizedAccessException("Exchange code is required");
+        }
+
+        Long userId = exchangeCodeService.consumeExchangeCode(request.getCode())
+                .orElseThrow(() -> new UnauthorizedAccessException("Invalid or expired OAuth2 exchange code"));
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException("User not found for OAuth2 exchange code"));
+
+        if (!user.isActive()) {
+            throw new UnauthorizedAccessException("Account is disabled. Please contact support.");
+        }
+
+        String accessToken = jwtService.generateAccessToken(user.getEmail(), user.getRole());
+        RefreshToken refreshToken = createRefreshToken(user);
+
+        log.info("OAuth2 exchange code consumed successfully for user '{}'", user.getEmail());
 
         return AuthResponse.builder()
                 .accessToken(accessToken)
@@ -164,7 +198,7 @@ public class UserService {
         return UserMapper.toResponse(getCurrentUser());
     }
 
-    public UserResponse updateUser(Long id, UserRequest userRequest) {
+    public UserResponse updateUser(Long id, ProfileUpdateRequest request) {
         User currentUser = getCurrentUser();
         if (!currentUser.getId().equals(id) && currentUser.getRole() != Role.ROLE_ADMIN) {
             throw new UnauthorizedAccessException("You are not authorized to update another user's profile");
@@ -173,20 +207,38 @@ public class UserService {
         User existingUser = userRepository.findById(id)
                 .orElseThrow(() -> new UserNotFoundException("User with id " + id + " not found"));
 
+        String normalizedEmail = request.getEmail().trim().toLowerCase();
+
         // If email changed, check for uniqueness
-        if (!existingUser.getEmail().equals(userRequest.getEmail())
-                && userRepository.findByEmail(userRequest.getEmail()).isPresent()) {
-            throw new UserAlreadyExistsException("Email " + userRequest.getEmail() + " is already taken");
+        if (!existingUser.getEmail().equalsIgnoreCase(normalizedEmail)
+                && userRepository.findByEmail(normalizedEmail).isPresent()) {
+            throw new UserAlreadyExistsException("Email " + request.getEmail() + " is already taken");
         }
 
-        existingUser.setName(userRequest.getName());
-        existingUser.setEmail(userRequest.getEmail());
-        if (userRequest.getPassword() != null && !userRequest.getPassword().isBlank()) {
-            existingUser.setPassword(passwordEncoder.encode(userRequest.getPassword()));
-        }
+        existingUser.setName(request.getName().trim());
+        existingUser.setEmail(normalizedEmail);
 
         User updatedUser = userRepository.save(existingUser);
+        log.info("Updated profile for user ID: {}", id);
         return UserMapper.toResponse(updatedUser);
+    }
+
+    public void changePassword(Long id, PasswordUpdateRequest request) {
+        User currentUser = getCurrentUser();
+        if (!currentUser.getId().equals(id) && currentUser.getRole() != Role.ROLE_ADMIN) {
+            throw new UnauthorizedAccessException("You are not authorized to update another user's password");
+        }
+
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new UserNotFoundException("User with id " + id + " not found"));
+
+        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
+            throw new IllegalArgumentException("Current password is incorrect");
+        }
+
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+        log.info("Password successfully updated for user ID: {}", id);
     }
 
     public void deleteUser(Long id) {

@@ -1,6 +1,9 @@
 package com.example.expensetracker.config;
 
 import com.example.expensetracker.security.JwtAuthenticationFilter;
+import com.example.expensetracker.security.oauth2.CustomOAuth2UserService;
+import com.example.expensetracker.security.oauth2.OAuth2AuthenticationFailureHandler;
+import com.example.expensetracker.security.oauth2.OAuth2AuthenticationSuccessHandler;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -26,6 +29,9 @@ import java.util.List;
 public class SecurityFilterConfig {
 
     private final JwtAuthenticationFilter jwtFilter;
+    private final CustomOAuth2UserService customOAuth2UserService;
+    private final OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
+    private final OAuth2AuthenticationFailureHandler oAuth2AuthenticationFailureHandler;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -48,14 +54,20 @@ public class SecurityFilterConfig {
                         })
                 )
                 .authorizeHttpRequests(auth -> auth
-                        // Auth & User Registration endpoints
+                        // Auth & User Registration & OAuth2 exchange endpoints
                         .requestMatchers(HttpMethod.POST,
                                 "/api/users",
                                 "/api/users/register",
                                 "/api/users/login",
                                 "/api/users/refresh-token",
                                 "/api/users/logout",
+                                "/api/users/oauth2/exchange",
                                 "/api/login"
+                        ).permitAll()
+                        // OAuth2 Authorization & Callback endpoints
+                        .requestMatchers(
+                                "/oauth2/**",
+                                "/login/oauth2/**"
                         ).permitAll()
                         // OpenAPI / Swagger UI
                         .requestMatchers(
@@ -71,6 +83,19 @@ public class SecurityFilterConfig {
                         .requestMatchers("/error").permitAll()
                         // All other API endpoints require authentication
                         .anyRequest().authenticated()
+                )
+                .oauth2Login(oauth2 -> oauth2
+                        .authorizationEndpoint(authorization -> authorization
+                                .baseUri("/oauth2/authorization")
+                        )
+                        .redirectionEndpoint(redirection -> redirection
+                                .baseUri("/login/oauth2/code/*")
+                        )
+                        .userInfoEndpoint(userInfo -> userInfo
+                                .userService(customOAuth2UserService)
+                        )
+                        .successHandler(oAuth2AuthenticationSuccessHandler)
+                        .failureHandler(oAuth2AuthenticationFailureHandler)
                 )
                 .addFilterBefore(
                         jwtFilter,
